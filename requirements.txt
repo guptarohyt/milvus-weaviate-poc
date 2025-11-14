@@ -1,0 +1,24 @@
+# Vector Database Clients
+pymilvus==2.4.0
+weaviate-client==4.9.3
+
+# Embeddings & ML
+sentence-transformers==2.3.1
+openai==1.12.0
+
+# Data Generation & Processing
+faker==22.6.0
+pandas==2.2.0
+numpy==1.26.3
+
+# Performance & Benchmarking
+tqdm==4.66.1
+psutil==5.9.8
+
+# Utilities
+python-dotenv==1.0.1
+pyyaml==6.0.1
+
+# Fix for marshmallow/environs compatibility with pymilvus
+marshmallow>=3.13.0,<4.0.0
+environs==9.5.0
