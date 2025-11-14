@@ -23,6 +23,10 @@ from reportlab.platypus import (
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
+from docx import Document
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.style import WD_STYLE_TYPE
 
 # Set style for charts
 sns.set_style("whitegrid")
@@ -551,6 +555,260 @@ def generate_all_images(count=200):
     print(f"  Metadata: {metadata_file}")
 
 
+def generate_claims_report_word(claim, output_dir):
+    """Generate a claims report Word document."""
+    doc = Document()
+
+    # Set document title
+    title = doc.add_heading('CLAIMS INVESTIGATION REPORT', 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Add claim header info
+    doc.add_heading('Claim Information', level=1)
+
+    # Create info table
+    table = doc.add_table(rows=8, cols=2)
+    table.style = 'Light Grid Accent 1'
+
+    info_data = [
+        ('Claim Number:', claim['id']),
+        ('Policy Number:', claim['policy_id']),
+        ('Loss Date:', claim['loss_date']),
+        ('Report Date:', claim['report_date']),
+        ('Status:', claim['status']),
+        ('Location:', claim['location']),
+        ('Peril:', claim['peril']),
+        ('Category:', claim['category']),
+    ]
+
+    for i, (label, value) in enumerate(info_data):
+        row = table.rows[i]
+        row.cells[0].text = label
+        row.cells[0].paragraphs[0].runs[0].font.bold = True
+        row.cells[1].text = str(value)
+
+    doc.add_paragraph()
+
+    # Financial summary
+    doc.add_heading('Financial Summary', level=1)
+
+    fin_table = doc.add_table(rows=4, cols=2)
+    fin_table.style = 'Light Grid Accent 1'
+
+    fin_data = [
+        ('Loss Amount:', f"${claim['loss_amount']:,}"),
+        ('Paid Amount:', f"${claim['paid_amount']:,}"),
+        ('Reserve Amount:', f"${claim['reserve_amount']:,}"),
+        ('Outstanding:', f"${claim['loss_amount'] - claim['paid_amount']:,}"),
+    ]
+
+    for i, (label, value) in enumerate(fin_data):
+        row = fin_table.rows[i]
+        row.cells[0].text = label
+        row.cells[0].paragraphs[0].runs[0].font.bold = True
+        row.cells[1].text = value
+
+    doc.add_paragraph()
+
+    # Description section
+    doc.add_heading('Claim Description', level=1)
+    doc.add_paragraph(claim['description'])
+
+    doc.add_paragraph()
+
+    # Investigation details
+    doc.add_heading('Investigation Details', level=1)
+
+    metadata = claim.get('metadata', {})
+
+    p = doc.add_paragraph()
+    p.add_run('Adjuster: ').bold = True
+    p.add_run(metadata.get('adjuster', 'Unknown'))
+
+    p = doc.add_paragraph()
+    p.add_run('Complexity: ').bold = True
+    p.add_run(metadata.get('complexity', 'Medium'))
+
+    p = doc.add_paragraph()
+    p.add_run('Number of Claimants: ').bold = True
+    p.add_run(str(metadata.get('num_claimants', 1)))
+
+    p = doc.add_paragraph()
+    p.add_run('Fraud Score: ').bold = True
+    fraud_score = metadata.get('fraud_score', 0) * 100
+    p.add_run(f'{fraud_score:.1f}%')
+
+    doc.add_paragraph()
+
+    # Recommendations
+    doc.add_heading('Recommendations', level=1)
+
+    if claim['status'] == 'Pending':
+        doc.add_paragraph('• Continue investigation and gather additional documentation', style='List Bullet')
+        doc.add_paragraph('• Verify loss amount with independent appraisal', style='List Bullet')
+        doc.add_paragraph('• Review policy terms and coverage limits', style='List Bullet')
+    elif claim['status'] == 'Approved':
+        doc.add_paragraph('• Proceed with payment per policy terms', style='List Bullet')
+        doc.add_paragraph('• Close file upon final settlement', style='List Bullet')
+    else:
+        doc.add_paragraph('• Review denial rationale with legal team', style='List Bullet')
+        doc.add_paragraph('• Prepare response to potential appeal', style='List Bullet')
+
+    # Save
+    filename = output_dir / f"claim_report_{claim['id']}.docx"
+    doc.save(str(filename))
+
+    return filename
+
+
+def generate_underwriting_guideline_word(policy, output_dir):
+    """Generate underwriting guidelines Word document."""
+    doc = Document()
+
+    # Title
+    title = doc.add_heading('UNDERWRITING GUIDELINES', 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    subtitle = doc.add_heading(f'{policy["policy_type"]} - {policy["territory"]}', level=2)
+    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    doc.add_paragraph()
+
+    # Policy overview
+    doc.add_heading('Policy Overview', level=1)
+    doc.add_paragraph(policy['description'])
+
+    doc.add_paragraph()
+
+    # Coverage details
+    doc.add_heading('Coverage Details', level=1)
+
+    table = doc.add_table(rows=4, cols=2)
+    table.style = 'Medium Shading 1 Accent 1'
+
+    coverage_data = [
+        ('Policy Number:', policy['id']),
+        ('Coverage Limit:', f"${policy['limit']:,}"),
+        ('Annual Premium:', f"${policy['premium']:,}"),
+        ('Rate on Line:', f"{(policy['premium'] / policy['limit'] * 100):.2f}%"),
+    ]
+
+    for i, (label, value) in enumerate(coverage_data):
+        row = table.rows[i]
+        row.cells[0].text = label
+        row.cells[0].paragraphs[0].runs[0].font.bold = True
+        row.cells[1].text = value
+
+    doc.add_paragraph()
+
+    # Underwriting criteria
+    doc.add_heading('Underwriting Criteria', level=1)
+
+    doc.add_heading('Risk Assessment Factors:', level=2)
+    doc.add_paragraph('• Geographic location and hazard exposure', style='List Bullet')
+    doc.add_paragraph('• Construction quality and building codes compliance', style='List Bullet')
+    doc.add_paragraph('• Loss history and claims experience', style='List Bullet')
+    doc.add_paragraph('• Risk management and mitigation measures', style='List Bullet')
+    doc.add_paragraph('• Financial strength of the cedent', style='List Bullet')
+
+    doc.add_heading('Acceptance Guidelines:', level=2)
+    doc.add_paragraph('• Maximum single risk: $50M per location', style='List Bullet')
+    doc.add_paragraph('• Catastrophe exposure: Limited to 1:250 year return period', style='List Bullet')
+    doc.add_paragraph('• Territory: As specified in policy schedule', style='List Bullet')
+    doc.add_paragraph('• Occupancy: Commercial and residential only', style='List Bullet')
+
+    doc.add_heading('Declination Criteria:', level=2)
+    doc.add_paragraph('• Properties in flood zones without proper mitigation', style='List Bullet')
+    doc.add_paragraph('• Risks with significant environmental exposures', style='List Bullet')
+    doc.add_paragraph('• Cedents with poor loss ratios (>80%) in past 3 years', style='List Bullet')
+    doc.add_paragraph('• Properties with code violations or deferred maintenance', style='List Bullet')
+
+    doc.add_paragraph()
+
+    # Pricing guidance
+    doc.add_heading('Pricing Guidance', level=1)
+
+    pricing_table = doc.add_table(rows=5, cols=3)
+    pricing_table.style = 'Light Grid Accent 1'
+
+    headers = ['Risk Tier', 'Rate Range', 'Examples']
+    for i, header in enumerate(headers):
+        cell = pricing_table.rows[0].cells[i]
+        cell.text = header
+        cell.paragraphs[0].runs[0].font.bold = True
+
+    pricing_data = [
+        ('Low Risk', '2.5% - 4.0%', 'Newer construction, low hazard areas'),
+        ('Medium Risk', '4.0% - 6.5%', 'Standard construction, moderate hazards'),
+        ('High Risk', '6.5% - 10.0%', 'Coastal areas, earthquake zones'),
+        ('Very High Risk', '10.0% - 15.0%', 'Multiple hazards, poor construction'),
+    ]
+
+    for i, (tier, rate, example) in enumerate(pricing_data, start=1):
+        pricing_table.rows[i].cells[0].text = tier
+        pricing_table.rows[i].cells[1].text = rate
+        pricing_table.rows[i].cells[2].text = example
+
+    # Save
+    filename = output_dir / f"underwriting_guideline_{policy['id']}.docx"
+    doc.save(str(filename))
+
+    return filename
+
+
+def generate_all_word_docs(count=50):
+    """Generate Word documents."""
+    print(f"\n{'='*60}")
+    print("GENERATING WORD DOCUMENTS")
+    print(f"{'='*60}\n")
+
+    # Load Phase 1 data
+    policies, claims, _ = load_phase1_data()
+    if policies is None or claims is None:
+        return
+
+    # Setup directories
+    data_dir = Path("./data/multimodal")
+    word_dir = data_dir / "word"
+    word_dir.mkdir(exist_ok=True)
+
+    # Generate documents (split between claims reports and underwriting guidelines)
+    generated = 0
+
+    # Generate claims reports (30 documents)
+    claims_count = int(count * 0.6)
+    for i in range(claims_count):
+        try:
+            claim = claims[i % len(claims)]
+            doc_path = generate_claims_report_word(claim, word_dir)
+            generated += 1
+
+            if generated % 10 == 0:
+                print(f"✓ Generated {generated}/{count} Word documents")
+
+        except Exception as e:
+            print(f"✗ Error generating claims report {i}: {str(e)}")
+
+    # Generate underwriting guidelines (20 documents)
+    guidelines_count = count - claims_count
+    for i in range(guidelines_count):
+        try:
+            policy = policies[i % len(policies)]
+            doc_path = generate_underwriting_guideline_word(policy, word_dir)
+            generated += 1
+
+            if generated % 10 == 0:
+                print(f"✓ Generated {generated}/{count} Word documents")
+
+        except Exception as e:
+            print(f"✗ Error generating underwriting guideline {i}: {str(e)}")
+
+    print(f"\n✓ Successfully generated {generated} Word documents")
+    print(f"  Location: {word_dir}")
+    print(f"  Claims Reports: {claims_count} documents")
+    print(f"  Underwriting Guidelines: {guidelines_count} documents")
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description='Generate multi-modal test data')
@@ -568,7 +826,7 @@ def main():
         generate_all_images(args.count if args.type == 'images' else 200)
 
     if args.type in ['word', 'all']:
-        print("\n⚠️  Word document generation not yet implemented")
+        generate_all_word_docs(args.count if args.type == 'word' else 50)
 
     if args.type in ['audio', 'all']:
         print("\n⚠️  Audio generation not yet implemented")
