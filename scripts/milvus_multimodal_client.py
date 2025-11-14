@@ -20,7 +20,7 @@ from pymilvus import (
 class MilvusMultiModalClient:
     """Milvus client for multi-modal document search."""
 
-    def __init__(self, host="localhost", port="19530"):
+    def __init__(self, host="localhost", port="19530", load_existing=False):
         """Initialize Milvus connection."""
         self.host = host
         self.port = port
@@ -31,6 +31,10 @@ class MilvusMultiModalClient:
         self.pdf_collection = None
         self.word_collection = None
         self.image_collection = None
+
+        # Load existing collections if requested
+        if load_existing:
+            self.load_existing_collections()
 
     def create_pdf_collection(self, collection_name="pdfs_phase2"):
         """Create collection for PDF documents (384-dim text embeddings)."""
@@ -153,6 +157,23 @@ class MilvusMultiModalClient:
 
         self.image_collection = collection
         return collection
+
+    def load_existing_collections(self):
+        """Load existing collections (for benchmark)."""
+        if utility.has_collection("pdfs_phase2"):
+            self.pdf_collection = Collection("pdfs_phase2")
+            self.pdf_collection.load()
+            print("✓ Loaded existing PDF collection")
+
+        if utility.has_collection("word_docs_phase2"):
+            self.word_collection = Collection("word_docs_phase2")
+            self.word_collection.load()
+            print("✓ Loaded existing Word collection")
+
+        if utility.has_collection("images_phase2"):
+            self.image_collection = Collection("images_phase2")
+            self.image_collection.load()
+            print("✓ Loaded existing image collection")
 
     def load_pdf_data(self, data_file: str):
         """Load PDF documents into Milvus."""

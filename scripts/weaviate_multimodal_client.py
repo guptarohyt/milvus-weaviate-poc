@@ -15,7 +15,7 @@ from weaviate.classes.query import Filter, MetadataQuery
 class WeaviateMultiModalClient:
     """Weaviate client for multi-modal document search."""
 
-    def __init__(self, host="localhost", port="8080"):
+    def __init__(self, host="localhost", port="8080", load_existing=True):
         """Initialize Weaviate connection."""
         self.host = host
         self.port = port
@@ -26,6 +26,15 @@ class WeaviateMultiModalClient:
             port=int(port)
         )
         print(f"✓ Connected to Weaviate at {host}:{port}")
+
+        # Check existing collections
+        if load_existing:
+            if self.client.collections.exists("PDFsPhase2"):
+                print("✓ Found existing PDFsPhase2 collection")
+            if self.client.collections.exists("WordDocsPhase2"):
+                print("✓ Found existing WordDocsPhase2 collection")
+            if self.client.collections.exists("ImagesPhase2"):
+                print("✓ Found existing ImagesPhase2 collection")
 
     def create_pdf_collection(self, collection_name="PDFsPhase2"):
         """Create collection for PDF documents."""
@@ -248,7 +257,7 @@ class WeaviateMultiModalClient:
                                damage_type: str = None,
                                min_severity: float = None,
                                top_k: int = 5):
-        """Search images with filters."""
+        """Search images with filters (uses text embeddings)."""
         collection = self.client.collections.get("ImagesPhase2")
 
         # Build filters
@@ -264,7 +273,7 @@ class WeaviateMultiModalClient:
         if combined_filter:
             response = collection.query.near_vector(
                 near_vector=query_embedding,
-                target_vector="image_vector",
+                target_vector="text_vector",  # Use text embeddings (384 dims)
                 limit=top_k,
                 filters=combined_filter,
                 return_metadata=MetadataQuery(distance=True)
@@ -272,7 +281,7 @@ class WeaviateMultiModalClient:
         else:
             response = collection.query.near_vector(
                 near_vector=query_embedding,
-                target_vector="image_vector",
+                target_vector="text_vector",  # Use text embeddings (384 dims)
                 limit=top_k,
                 return_metadata=MetadataQuery(distance=True)
             )
