@@ -22,3 +22,25 @@ pyyaml==6.0.1
 # Fix for marshmallow/environs compatibility with pymilvus
 marshmallow>=3.13.0,<4.0.0
 environs==9.5.0
+
+# Phase 2: Multi-Modal Support
+
+# PDF Processing
+reportlab==4.0.9
+pdfplumber==0.10.3
+matplotlib==3.8.2
+seaborn==0.13.2
+
+# Word Documents
+python-docx==1.1.0
+
+# Image Processing & CLIP
+Pillow==10.2.0
+transformers==4.37.2
+torch==2.2.0
+
+# Audio Processing (Optional)
+gTTS==2.5.1
+
+# Additional utilities for Phase 2
+openpyxl==3.1.2  # Excel support
