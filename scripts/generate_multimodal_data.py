@@ -21,6 +21,8 @@ from reportlab.platypus import (
     Image as RLImage, Spacer, PageBreak, KeepTogether
 )
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import numpy as np
 
 # Set style for charts
 sns.set_style("whitegrid")
@@ -359,6 +361,196 @@ def generate_all_pdfs(count=100):
     print(f"  Charts: {charts_dir}")
 
 
+def generate_damage_image(damage_type, severity, image_id, output_dir):
+    """Generate synthetic damage assessment image."""
+    # Image size
+    width, height = 1200, 800
+
+    # Color schemes for different damage types
+    color_schemes = {
+        'hurricane': {'base': (100, 120, 140), 'damage': (80, 90, 100), 'highlight': (200, 210, 220)},
+        'flood': {'base': (90, 110, 140), 'damage': (70, 90, 120), 'highlight': (180, 200, 230)},
+        'fire': {'base': (140, 100, 80), 'damage': (100, 60, 40), 'highlight': (220, 180, 140)},
+        'structural': {'base': (120, 120, 120), 'damage': (90, 90, 90), 'highlight': (200, 200, 200)},
+    }
+
+    colors = color_schemes.get(damage_type, color_schemes['structural'])
+
+    # Create base image with gradient
+    img = Image.new('RGB', (width, height), colors['base'])
+    draw = ImageDraw.Draw(img)
+
+    # Add gradient effect
+    for y in range(height):
+        factor = y / height
+        r = int(colors['base'][0] + (colors['damage'][0] - colors['base'][0]) * factor)
+        g = int(colors['base'][1] + (colors['damage'][1] - colors['base'][1]) * factor)
+        b = int(colors['base'][2] + (colors['damage'][2] - colors['base'][2]) * factor)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+
+    # Add damage patterns based on type and severity
+    np.random.seed(int(image_id.split('-')[1]))
+
+    if damage_type == 'hurricane':
+        # Debris patterns
+        for _ in range(int(20 * severity)):
+            x = random.randint(0, width)
+            y = random.randint(0, height)
+            size = random.randint(20, 80)
+            draw.ellipse([x, y, x + size, y + size//2], fill=colors['damage'])
+
+    elif damage_type == 'flood':
+        # Water line and staining
+        water_line = int(height * (0.3 + 0.4 * severity))
+        draw.rectangle([0, water_line, width, height], fill=(70, 90, 120, 180))
+        # Watermarks
+        for _ in range(10):
+            y = random.randint(water_line - 100, height)
+            draw.line([(0, y), (width, y)], fill=colors['highlight'], width=2)
+
+    elif damage_type == 'fire':
+        # Char marks and smoke damage
+        for _ in range(int(15 * severity)):
+            x = random.randint(0, width)
+            y = random.randint(0, height)
+            size = random.randint(40, 120)
+            draw.ellipse([x, y, x + size, y + size], fill=(40, 30, 20), outline=(80, 60, 40))
+
+    elif damage_type == 'structural':
+        # Cracks and damage lines
+        for _ in range(int(10 * severity)):
+            x1 = random.randint(0, width)
+            y1 = random.randint(0, height)
+            x2 = x1 + random.randint(-200, 200)
+            y2 = y1 + random.randint(50, 300)
+            draw.line([(x1, y1), (x2, y2)], fill=(60, 60, 60), width=random.randint(2, 5))
+
+    # Add severity indicator boxes
+    severity_text = f"Severity: {int(severity * 100)}%"
+    type_text = f"Type: {damage_type.upper()}"
+    id_text = f"ID: {image_id}"
+
+    # Draw info boxes
+    box_height = 40
+    draw.rectangle([0, 0, width, box_height], fill=(0, 0, 0, 180))
+    draw.rectangle([0, height - box_height, width, height], fill=(0, 0, 0, 180))
+
+    # Try to use a better font, fallback to default
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 24)
+        small_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 18)
+    except:
+        font = ImageFont.load_default()
+        small_font = font
+
+    # Add text
+    draw.text((20, 10), type_text, fill=(255, 255, 255), font=font)
+    draw.text((width - 300, 10), severity_text, fill=(255, 200, 100), font=font)
+    draw.text((20, height - 30), id_text, fill=(200, 200, 200), font=small_font)
+
+    # Add some noise for realism
+    noise = np.random.randint(0, 30, (height, width, 3), dtype=np.uint8)
+    noise_img = Image.fromarray(noise)
+    img = Image.blend(img, noise_img, 0.1)
+
+    # Apply slight blur for realism
+    img = img.filter(ImageFilter.GaussianBlur(radius=0.5))
+
+    # Save
+    filename = output_dir / f"{damage_type}_{image_id}.jpg"
+    img.save(filename, 'JPEG', quality=85)
+
+    return filename
+
+
+def generate_all_images(count=200):
+    """Generate synthetic damage assessment images."""
+    print(f"\n{'='*60}")
+    print("GENERATING DAMAGE ASSESSMENT IMAGES")
+    print(f"{'='*60}\n")
+
+    # Load Phase 1 data to link images to claims
+    _, claims, _ = load_phase1_data()
+    if claims is None:
+        return
+
+    # Setup directories
+    data_dir = Path("./data/multimodal")
+    images_dir = data_dir / "images"
+    images_dir.mkdir(exist_ok=True)
+
+    # Damage type distribution
+    damage_types = {
+        'hurricane': 80,   # 40%
+        'flood': 60,       # 30%
+        'fire': 40,        # 20%
+        'structural': 20,  # 10%
+    }
+
+    # Generate images
+    generated = 0
+    image_metadata = []
+
+    for damage_type, type_count in damage_types.items():
+        type_dir = images_dir / damage_type
+        type_dir.mkdir(exist_ok=True)
+
+        for i in range(type_count):
+            try:
+                # Create image ID
+                image_id = f"IMG-{generated + 1:06d}"
+
+                # Random severity (0.3 to 1.0)
+                severity = random.uniform(0.3, 1.0)
+
+                # Generate image
+                image_path = generate_damage_image(damage_type, severity, image_id, type_dir)
+
+                # Link to a random claim
+                linked_claim = random.choice(claims[:min(len(claims), 500)])
+
+                # Create metadata
+                metadata = {
+                    'image_id': image_id,
+                    'filename': str(image_path.name),
+                    'path': str(image_path.relative_to(Path("./data"))),
+                    'damage_type': damage_type,
+                    'severity': round(severity, 2),
+                    'claim_id': linked_claim['id'],
+                    'policy_id': linked_claim['policy_id'],
+                    'location': linked_claim['location'],
+                    'timestamp': linked_claim['loss_date'],
+                    'peril': linked_claim.get('peril', damage_type),
+                    'loss_amount': linked_claim.get('loss_amount', 0),
+                    'description': f"{damage_type.title()} damage assessment photo. "
+                                 f"Severity: {int(severity * 100)}%. "
+                                 f"Associated with claim {linked_claim['id']}. "
+                                 f"Location: {linked_claim['location']}.",
+                }
+                image_metadata.append(metadata)
+
+                generated += 1
+
+                if generated % 50 == 0:
+                    print(f"✓ Generated {generated}/{count} images")
+
+            except Exception as e:
+                print(f"✗ Error generating image {image_id}: {str(e)}")
+
+    # Save metadata
+    metadata_file = images_dir / "image_metadata.json"
+    with open(metadata_file, 'w') as f:
+        json.dump(image_metadata, f, indent=2)
+
+    print(f"\n✓ Successfully generated {generated} damage assessment images")
+    print(f"  Location: {images_dir}")
+    print(f"  Hurricane: {damage_types['hurricane']} images")
+    print(f"  Flood: {damage_types['flood']} images")
+    print(f"  Fire: {damage_types['fire']} images")
+    print(f"  Structural: {damage_types['structural']} images")
+    print(f"  Metadata: {metadata_file}")
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description='Generate multi-modal test data')
@@ -372,11 +564,11 @@ def main():
     if args.type in ['pdf', 'all']:
         generate_all_pdfs(args.count)
 
+    if args.type in ['images', 'all']:
+        generate_all_images(args.count if args.type == 'images' else 200)
+
     if args.type in ['word', 'all']:
         print("\n⚠️  Word document generation not yet implemented")
-
-    if args.type in ['images', 'all']:
-        print("\n⚠️  Image generation/curation not yet implemented")
 
     if args.type in ['audio', 'all']:
         print("\n⚠️  Audio generation not yet implemented")
