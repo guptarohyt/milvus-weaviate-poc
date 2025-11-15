@@ -1,175 +1,246 @@
-# Quick Reference: Running the Comparison
+# Phase 2 Quick Reference - Multi-Modal Vector Search
 
-## 🚀 Quick Start (5 Minutes)
+## 🚀 Quick Start (15 Minutes)
 
 ```bash
-# 1. Activate environment
-source venv/bin/activate
+# 1. Setup environment
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 
-# 2. Start databases (if not running)
+# 2. Start databases
 docker compose up -d
 sleep 30
 
-# 3. Run full comparison
+# 3. Generate multi-modal data
 cd scripts
-AUTO_RUN=1 python run_comparison.py
+python generate_multimodal_data.py --type all
+
+# 4. Process and create embeddings
+python process_multimodal_data.py
+
+# 5. Run benchmarks
+python benchmark_multimodal.py
 ```
 
-**Expected time**: 5-10 minutes
-**Output**: `results/benchmark_results.json`
+**Expected time**: 15-20 minutes (first run with CLIP download)
+**Output**: `results/phase2_benchmark_results.json`
 
 ---
 
 ## 📋 Step-by-Step Commands
 
-### Step 1: Generate Data
+### Step 1: Generate Multi-Modal Data
 ```bash
 cd scripts
 source ../venv/bin/activate
-python generate_data.py
-```
-**Output**: `data/policies.json`, `data/claims.json`, `data/knowledge_base.json`
-**Time**: 2 seconds
 
-### Step 2: Test Milvus
-```bash
-python milvus_client.py
-```
-**What it does**: Creates collections, inserts data, tests search
-**Time**: ~30 seconds
+# Generate all types
+python generate_multimodal_data.py --type all
 
-### Step 3: Test Weaviate
-```bash
-python weaviate_client.py
+# Or generate specific types
+python generate_multimodal_data.py --type pdfs
+python generate_multimodal_data.py --type word
+python generate_multimodal_data.py --type images
 ```
-**What it does**: Same as Milvus but faster
-**Time**: ~5 seconds
 
-### Step 4: Run Benchmarks
+**Output**:
+- `data/multimodal/pdfs/` - 100 PDF files (~5MB)
+- `data/multimodal/word/` - 50 Word documents (~1.5MB)
+- `data/multimodal/images/` - 200 PNG images (~2MB)
+
+**Time**: 30-60 seconds
+
+---
+
+### Step 2: Process Data & Generate Embeddings
 ```bash
-python benchmark.py
+python process_multimodal_data.py
 ```
-**What it does**: Compares performance across all scenarios
-**Time**: 2-3 minutes
 
-### Step 5: View Results
+**What it does**:
+- Loads Sentence Transformers (all-MiniLM-L6-v2) for text - 384 dims
+- Loads CLIP (openai/clip-vit-base-patch32) for images - 512 dims
+- Extracts text from PDFs and Word docs
+- Generates embeddings for all documents
+
+**Output**: `data/multimodal/processed/*.json`
+**Time**: 5-8 minutes (first run), 2-3 minutes (subsequent)
+
+---
+
+### Step 3: Load Data into Milvus
 ```bash
-cat ../results/benchmark_results.json | python -m json.tool
+python milvus_multimodal_client.py
+```
+
+**What it does**:
+- Creates 3 collections: `pdfs_phase2`, `word_docs_phase2`, `images_phase2`
+- Loads 350 documents with embeddings
+- Builds IVF_FLAT indexes
+
+**Time**: 15-20 seconds
+
+---
+
+### Step 4: Load Data into Weaviate
+```bash
+python weaviate_multimodal_client.py
+```
+
+**What it does**:
+- Creates 3 collections: `PDFsPhase2`, `WordDocsPhase2`, `ImagesPhase2`
+- Loads 350 documents with embeddings
+- HNSW index builds automatically
+
+**Time**: 10-15 seconds (faster than Milvus!)
+
+---
+
+### Step 5: Run Benchmarks
+```bash
+python benchmark_multimodal.py
+```
+
+**What it tests**:
+1. PDF search (10 queries)
+2. Word document search (10 queries)
+3. Image-to-image similarity (10 queries)
+4. Text-to-image search (10 queries)
+5. Filtered image search (5 queries, Weaviate only)
+
+**Time**: 1-2 minutes
+
+---
+
+### Step 6: View Results
+```bash
+# Pretty-print JSON
+cat ../results/phase2_benchmark_results.json | python -m json.tool
+
+# Summary view
+python -c "
+import json
+with open('../results/phase2_benchmark_results.json') as f:
+    r = json.load(f)
+for cat, data in r['comparison'].items():
+    print(f'{cat}: {data[\"faster\"]} wins ({data[\"speedup_percent\"]:.1f}% faster)')
+"
 ```
 
 ---
 
 ## 🔍 Understanding What's Happening
 
-### During Data Generation
+### During Data Generation (30-60s)
 ```
-Generating policies...   ━━━━━━━━━━━━━━━━━━ 1000/1000
-  └─ Creating fake company names, policy types, limits, etc.
-
-Generating claims...     ━━━━━━━━━━━━━━━━━━ 2000/2000
-  └─ Creating loss events, amounts, descriptions
-
-Generating knowledge...  ━━━━━━━━━━━━━━━━━━ 500/500
-  └─ Creating regulatory docs, guidelines
+Generating multi-modal data...
+  ├─ PDFs: ReportLab creates policy documents with tables/charts
+  ├─ Word: python-docx creates claims reports and guidelines
+  └─ Images: PIL creates synthetic damage assessment photos
 ```
 
-### During Milvus Setup (26 seconds)
+### During Processing (5-8 min first run)
 ```
-1. Loading model...                           [2s]
-   └─ sentence-transformers/all-MiniLM-L6-v2
-
-2. Creating collections...                    [1s]
-   └─ Define schema (id, text, vector fields)
-
-3. Generating embeddings...                   [10s]
-   ├─ Policies: 1000 × 384 dimensions
-   ├─ Claims: 2000 × 384 dimensions
-   └─ Knowledge: 500 × 384 dimensions
-
-4. Inserting data...                          [2s]
-   └─ Batch insert to Milvus
-
-5. Building IVF index...                      [8s]
-   └─ Clustering 3500 vectors into 128 groups
-
-6. Loading to memory...                       [3s]
-   └─ RAM: ~200MB for fast queries
+Processing with AI models...
+  ├─ Loading Sentence Transformers (~90MB) - text embeddings
+  ├─ Loading CLIP (~600MB) - image embeddings
+  ├─ Extracting text from PDFs (pdfplumber)
+  ├─ Extracting text from Word docs (python-docx)
+  ├─ Generating 384-dim embeddings for text
+  └─ Generating 512-dim embeddings for images (CLIP)
 ```
 
-### During Weaviate Setup (3.4 seconds)
+### During Milvus Setup (15-20s)
 ```
-1. Loading model...                           [2s]
-   └─ Same sentence-transformers model
+Milvus workflow:
+  1. Create collections with schemas     [1s]
+  2. Insert documents with embeddings    [8s]
+  3. Build IVF_FLAT indexes             [12s]
+  4. Load collections to memory          [2s]
+  Total: ~23s
+```
 
-2. Creating collections...                    [0.2s]
-   └─ More flexible schema
-
-3. Generating embeddings...                   [0s]
-   └─ Reuses from step 1
-
-4. Inserting + Building HNSW...               [1.2s]
-   └─ Incremental graph building
-   └─ No separate index build phase!
+### During Weaviate Setup (10-15s)
+```
+Weaviate workflow:
+  1. Create collections                  [0.3s]
+  2. Insert + build HNSW index          [9s]
+  Total: ~9s (2x faster than Milvus!)
 ```
 
 **Key Difference**: Weaviate builds index DURING insert, Milvus does it AFTER.
 
-### During Query Tests
+### During Benchmarks (1-2 min)
 ```
-Testing: "hurricane property catastrophe"
+Testing 4 query categories:
 
-Milvus Process:
-  1. Embed query              [0.1ms]
-  2. Compare to 128 centroids [0.2ms]
-  3. Search 10 clusters       [4.0ms]
-  4. Return top 10           [0.3ms]
-  Total: 4.6ms
+PDF Search (10 queries):
+  Milvus:   2.92ms avg ✅
+  Weaviate: 3.16ms avg
+  Winner: Milvus (7.4% faster)
 
-Weaviate Process:
-  1. Embed query              [0.1ms]
-  2. Navigate HNSW graph      [2.4ms]
-  3. Return top 10           [0.3ms]
-  Total: 2.8ms
+Word Search (10 queries):
+  Milvus:   3.16ms avg
+  Weaviate: 2.79ms avg ✅
+  Winner: Weaviate (13.4% faster)
 
-Weaviate is 39% faster! 🎉
+Image-to-Image (10 queries):
+  Milvus:   1.03ms avg ✅
+  Weaviate: 1.66ms avg
+  Winner: Milvus (37.6% faster!) 🏆
+
+Text-to-Image (10 queries):
+  Milvus:   2.67ms avg ✅
+  Weaviate: 2.87ms avg
+  Winner: Milvus (6.9% faster)
+
+Overall Winner: Milvus (3 out of 4)
 ```
 
 ---
 
 ## 🎯 Key Metrics to Watch
 
-When running the comparison, watch for these numbers:
-
 ### Query Performance
 ```
-Target: < 10ms per query
+Target: < 5ms per query
 
-Milvus:   4.6ms   ✅ Good
-Weaviate: 2.8ms   ✅ Better
+PDF Search:
+  Milvus:   2.92ms   ✅ Excellent
+  Weaviate: 3.16ms   ✅ Excellent
+
+Image Search (the game changer!):
+  Milvus:   1.03ms   ✅ Outstanding
+  Weaviate: 1.66ms   ✅ Good
+
+→ Milvus is 37.6% faster on image search with CLIP!
 ```
 
 ### Setup Time
 ```
-Target: < 60s for 3,500 records
+Target: < 60s for 350 documents
 
-Milvus:   26.1s   ✅ Acceptable
-Weaviate:  3.4s   ✅ Excellent
+Milvus:   ~23s   ✅ Good
+Weaviate: ~9s    ✅ Excellent (2x faster)
 ```
 
-### Filtered Search
+### Data Volume
 ```
-Target: < 50ms with filters
-
-Milvus:   412ms   ⚠️  Slow
-Weaviate:  11ms   ✅ Fast
+Collections:
+  - PDFs: 100 documents (384-dim embeddings)
+  - Word: 50 documents (384-dim embeddings)
+  - Images: 200 images (512-dim CLIP embeddings)
+  Total: 350 multi-modal documents
 ```
 
 ### Memory Usage
 ```
-Target: < 500MB for 3,500 records
+Target: < 1GB for 350 documents
 
-Milvus:   ~200MB  ✅ Good
-Weaviate: ~150MB  ✅ Better
+Milvus:   ~300MB  ✅ Good
+Weaviate: ~250MB  ✅ Better
+CLIP model: ~600MB (loaded during processing)
 ```
 
 ---
@@ -182,8 +253,7 @@ Weaviate: ~150MB  ✅ Better
 docker compose ps
 
 # Restart if needed
-docker compose down
-docker compose up -d
+docker compose down && docker compose up -d
 sleep 30
 ```
 
@@ -192,24 +262,33 @@ sleep 30
 # Activate venv
 source venv/bin/activate
 
-# Reinstall if needed
+# Reinstall
 pip install -r requirements.txt
+```
+
+### "Out of memory" (CLIP)
+```bash
+# CLIP needs ~2GB RAM total
+# Close other apps or reduce batch size:
+# Edit process_multimodal_data.py line ~150:
+batch_size = 16  # Reduce from 32
 ```
 
 ### "Data not found"
 ```bash
 # Generate data first
 cd scripts
-python generate_data.py
+python generate_multimodal_data.py --type all
+python process_multimodal_data.py
 ```
 
-### Slow performance
+### Slow image processing
 ```bash
-# Check Docker resources
-docker stats --no-stream
+# Check GPU
+python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 
-# Allocate more RAM to Docker (8GB recommended)
-# Docker Desktop → Settings → Resources → Memory
+# Or reduce images
+python generate_multimodal_data.py --num-images 50
 ```
 
 ---
@@ -218,98 +297,111 @@ docker stats --no-stream
 
 ### Winner Decision Matrix
 
-| Criterion | Weight | Milvus Score | Weaviate Score | Winner |
-|-----------|--------|--------------|----------------|--------|
-| Query Speed | 30% | 3/5 | 5/5 | Weaviate |
-| Setup Time | 20% | 2/5 | 5/5 | Weaviate |
-| Features | 25% | 3/5 | 5/5 | Weaviate |
-| Ease of Use | 15% | 2/5 | 5/5 | Weaviate |
-| Scalability | 10% | 5/5 | 4/5 | Milvus |
+| Criterion | Weight | Milvus | Weaviate | Winner |
+|-----------|--------|--------|----------|--------|
+| **PDF Search** | 25% | 2.92ms | 3.16ms | Milvus |
+| **Word Search** | 25% | 3.16ms | 2.79ms | Weaviate |
+| **Image Search** | 30% | 1.03ms | 1.66ms | **Milvus** 🏆 |
+| **Text-to-Image** | 20% | 2.67ms | 2.87ms | Milvus |
 
-**Overall: Weaviate wins 4 out of 5 categories**
+**Overall: Milvus wins 3 out of 4 categories (75%)**
 
-### When to Choose Milvus Despite Results
-- You need **billions** of vectors (proven scale)
-- You want **specific index types** (IVF_PQ, ANNOY)
-- You need **partition-based isolation**
-- You have **dedicated ops team** for complex setup
+**Key Insight**: Milvus excels at **high-dimensional image embeddings** (CLIP's 512 dims)
 
-### When to Choose Weaviate (Most Cases)
-- You need **fast queries** (< 5ms)
-- You want **hybrid search** (built-in)
-- You need **quick deployment** (one container)
-- You want **better filtering** (40x faster)
-- You value **developer experience**
+### When to Choose Milvus (Phase 2)
+- ✅ Heavy image search workloads
+- ✅ CLIP or other high-dim visual embeddings
+- ✅ Image-to-image similarity
+- ✅ Cross-modal (text-to-image) search
+- ✅ Mixed embedding dimensions (384 + 512)
+
+### When to Choose Weaviate (Phase 2)
+- ✅ Fast setup and deployment
+- ✅ Text document search (Word/PDF)
+- ✅ Need filtered searches
+- ✅ Simpler operations and maintenance
+- ✅ Developer experience priority
 
 ---
 
 ## 🎓 What You'll Learn
 
-By running the comparison step-by-step, you'll understand:
+Running Phase 2 teaches you:
 
-1. **Vector Embeddings**: How text converts to numbers
-2. **Index Types**: IVF vs HNSW performance tradeoffs
-3. **Query Process**: How semantic search works under the hood
-4. **Hybrid Search**: Combining semantic + keyword search
-5. **Architecture**: Single service vs distributed systems
-6. **Performance**: What affects query speed
-7. **Scalability**: How systems handle growing data
+1. **Multi-Modal Embeddings**: Different models for different data types
+2. **CLIP**: How vision-language models enable text-to-image search
+3. **Cross-Modal Search**: Query images with text, find text with images
+4. **Embedding Dimensions**: Handling 384-dim (text) vs 512-dim (visual)
+5. **Document Processing**: PDF/Word extraction and embedding
+6. **Performance**: How data type affects vector search speed
+7. **Index Types**: IVF_FLAT vs HNSW on different embedding dims
 
 ---
 
 ## 📚 Files to Review
 
-After running:
+After running Phase 2:
 
-1. **results/benchmark_results.json** - All metrics
+1. **results/phase2_benchmark_results.json** - Complete metrics
 2. **STEP_BY_STEP_GUIDE.md** - Detailed explanations
-3. **scripts/milvus_client.py** - Milvus implementation
-4. **scripts/weaviate_client.py** - Weaviate implementation
-5. **scripts/benchmark.py** - Comparison logic
+3. **scripts/process_multimodal_data.py** - Embedding generation
+4. **scripts/benchmark_multimodal.py** - Test implementation
+5. **data/multimodal/processed/*.json** - Processed data with embeddings
 
 ---
 
 ## 🚀 Next Steps
 
-After understanding the comparison:
+After completing Phase 2:
 
-1. ✅ **Review results** - Analyze benchmark_results.json
-2. ✅ **Try examples** - Run weaviate_reinsurance_examples.py
-3. ✅ **Test RAG** - Run rag_with_llm.py
-4. ✅ **Load real data** - Use load_real_data.py (optional)
-5. ✅ **Make decision** - Choose Weaviate or Milvus
-6. ✅ **Plan deployment** - Production setup guide
+1. ✅ **Analyze results** - Compare with Phase 1 (text-only)
+2. ✅ **Visualize embeddings** - See CLIP vs text embeddings
+3. ✅ **Test real data** - Use actual insurance PDFs and damage photos
+4. ✅ **Scale test** - Try 1000+ documents per type
+5. ✅ **Choose winner** - Milvus for images, Weaviate for text?
+6. ✅ **Plan deployment** - Production architecture
 
 ---
 
 ## 💡 Pro Tips
 
-**Tip 1**: Run multiple times for consistent results
+### Run benchmarks multiple times for consistency
 ```bash
 for i in {1..3}; do
     echo "Run $i"
-    AUTO_RUN=1 python run_comparison.py
+    python benchmark_multimodal.py
     sleep 5
 done
 ```
 
-**Tip 2**: Test with different data sizes
-```python
-# In benchmark.py, line 75:
-runner.setup(data_size=500)   # Smaller test
-runner.setup(data_size=5000)  # Larger test
+### Generate different data sizes
+```bash
+# Small test
+python generate_multimodal_data.py --num-pdfs 10 --num-word 5 --num-images 20
+
+# Large test
+python generate_multimodal_data.py --num-pdfs 500 --num-word 200 --num-images 1000
 ```
 
-**Tip 3**: Monitor resource usage during test
+### Monitor resources during test
 ```bash
-# In another terminal:
+# In another terminal
 watch -n 1 'docker stats --no-stream'
 ```
 
-**Tip 4**: Save results with timestamp
+### Save results with timestamp
 ```bash
 timestamp=$(date +%Y%m%d_%H%M%S)
-cp results/benchmark_results.json "results/benchmark_${timestamp}.json"
+cp ../results/phase2_benchmark_results.json "../results/phase2_${timestamp}.json"
+```
+
+### Use GPU for CLIP (if available)
+```bash
+# Check GPU
+python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+
+# Install CUDA PyTorch if needed
+# See: https://pytorch.org/get-started/locally/
 ```
 
 ---
@@ -322,14 +414,86 @@ docker compose logs milvus
 docker compose logs weaviate
 ```
 
-**Verbose mode**:
-```bash
-# Add debug output
-export DEBUG=1
-python run_comparison.py
+**Verbose mode** (add to scripts):
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
 ```
 
-**Review the guides**:
-- STEP_BY_STEP_GUIDE.md - Detailed walkthrough
-- QUICKSTART.md - Setup instructions
-- examples/README.md - Implementation examples
+**Browse data interactively**:
+```bash
+python database_browser.py    # Milvus TUI
+python check_db_status.py     # Weaviate status
+```
+
+**Visualize embeddings**:
+```bash
+python visualize_embeddings.py
+```
+
+---
+
+## 🔄 Common Workflows
+
+### Full regeneration
+```bash
+rm -rf data/multimodal/
+python generate_multimodal_data.py --type all
+python process_multimodal_data.py
+python benchmark_multimodal.py
+```
+
+### Test only one database
+```bash
+# Milvus only
+python milvus_multimodal_client.py
+
+# Weaviate only
+python weaviate_multimodal_client.py
+```
+
+### Quick data check
+```bash
+ls -lh data/multimodal/*/
+ls -lh data/multimodal/processed/
+```
+
+### View collections
+```bash
+# Milvus UI
+open http://localhost:8000  # Attu interface
+
+# Command line
+python -c "
+from milvus_multimodal_client import MilvusMultiModalClient
+m = MilvusMultiModalClient(load_existing=True)
+print(f'PDFs: {m.pdf_collection.num_entities}')
+print(f'Word: {m.word_collection.num_entities}')
+print(f'Images: {m.image_collection.num_entities}')
+"
+```
+
+---
+
+## Phase 2 vs Phase 1 Comparison
+
+| Aspect | Phase 1 | Phase 2 |
+|--------|---------|---------|
+| **Data Types** | JSON (text only) | PDFs, Word, Images |
+| **Documents** | 3,500 text records | 350 multi-modal docs |
+| **Embeddings** | 384-dim only | 384-dim + 512-dim |
+| **Models** | Sentence Transformers | Sentence Transformers + CLIP |
+| **Collections** | 3 (same schema) | 3 (different schemas) |
+| **Search Types** | Semantic text search | Multi-modal + cross-modal |
+| **Complexity** | Basic | Advanced |
+| **Setup Time** | 2-5 minutes | 15-20 minutes |
+| **Winner** | Weaviate | Milvus |
+
+**Key Takeaway**: Different data modalities favor different databases!
+
+---
+
+**Phase**: 2 (Multi-Modal)
+**Status**: ✅ Complete
+**Branch**: `phase2`
+**Last Updated**: 2025-11-15
