@@ -44,3 +44,7 @@ gTTS==2.5.1
 
 # Additional utilities for Phase 2
 openpyxl==3.1.2  # Excel support
+
+# Visualization & Dimensionality Reduction
+scikit-learn==1.4.0  # PCA, t-SNE
+umap-learn==0.5.5  # UMAP (optional but recommended)
