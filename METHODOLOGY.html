@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benchmark Methodology - Process Flow</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2E86AB;
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid #2E86AB;
+        }
+
+        h2 {
+            color: #2E86AB;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .process-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .phase {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 2rem;
+            border-left: 6px solid #2E86AB;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .phase-number {
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            background: #2E86AB;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .phase-title {
+            color: #2E86AB;
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .phase-description {
+            color: #555;
+            margin-bottom: 1rem;
+            font-size: 1.05rem;
+        }
+
+        .sub-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .sub-step {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #6c757d;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .sub-step h4 {
+            color: #495057;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sub-step-icon {
+            background: #6c757d;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+
+        .sub-step ul {
+            margin-left: 1.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .sub-step li {
+            margin: 0.3rem 0;
+            color: #666;
+        }
+
+        .code-block {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        .code-block .keyword {
+            color: #c678dd;
+        }
+
+        .code-block .string {
+            color: #98c379;
+        }
+
+        .code-block .number {
+            color: #d19a66;
+        }
+
+        .code-block .comment {
+            color: #5c6370;
+            font-style: italic;
+        }
+
+        .metric-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+        }
+
+        .metric-box strong {
+            color: #1976d2;
+        }
+
+        .arrow-down {
+            text-align: center;
+            color: #2E86AB;
+            font-size: 2rem;
+            margin: 1rem 0;
+        }
+
+        .data-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .data-box {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 2px solid #dee2e6;
+            min-width: 150px;
+            text-align: center;
+        }
+
+        .data-box-title {
+            font-weight: 600;
+            color: #2E86AB;
+            margin-bottom: 0.3rem;
+        }
+
+        .data-box-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .flow-arrow {
+            color: #6c757d;
+            font-size: 1.5rem;
+        }
+
+        .tools-used {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .tool-badge {
+            background: #6c757d;
+            color: white;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .highlight {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .comparison-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 2px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .comparison-card h4 {
+            color: #2E86AB;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .test-type {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border-left: 4px solid #4caf50;
+        }
+
+        @media (max-width: 768px) {
+            .sub-steps {
+                grid-template-columns: 1fr;
+            }
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+            .data-flow {
+                flex-direction: column;
+            }
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Benchmark Methodology: How We Got The Numbers</h1>
+        <p style="text-align: center; color: #666; font-size: 1.1rem; margin-bottom: 3rem;">
+            Complete process from data generation to final benchmark results
+        </p>
+
+        <div class="process-flow">
+
+            <!-- PHASE 1: SYNTHETIC DATA GENERATION -->
+            <div class="phase">
+                <div class="phase-number">1</div>
+                <div class="phase-title">Synthetic Data Generation</div>
+                <div class="phase-description">
+                    Created realistic insurance documents from scratch since we needed controlled test data
+                </div>
+
+                <div class="sub-steps">
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">A</span> PDF Documents</h4>
+                        <ul>
+                            <li><strong>Tool:</strong> ReportLab library (Python)</li>
+                            <li><strong>Count:</strong> 150 PDFs</li>
+                            <li><strong>Types:</strong> Auto (50), Home (50), Life (50) policies</li>
+                            <li><strong>Content:</strong> Policy numbers, premiums, coverage details, terms</li>
+                            <li><strong>Size:</strong> ~1.5 MB total (~10 KB each)</li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">def</span> generate_auto_policy():
+    policy = {
+        <span class="string">"type"</span>: <span class="string">"auto"</span>,
+        <span class="string">"premium"</span>: <span class="number">1200</span> - <span class="number">3000</span>,
+        <span class="string">"vehicle"</span>: random_vehicle(),
+        <span class="string">"coverage"</span>: [...],
+    }
+    <span class="comment"># Generate PDF with ReportLab</span>
+                        </div>
+                    </div>
+
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">B</span> Word Documents</h4>
+                        <ul>
+                            <li><strong>Tool:</strong> python-docx library</li>
+                            <li><strong>Count:</strong> 150 DOCX files</li>
+                            <li><strong>Types:</strong> Claims reports (90), Underwriting guidelines (60)</li>
+                            <li><strong>Content:</strong> Tables, headings, professional formatting</li>
+                            <li><strong>Size:</strong> ~2 MB total (~13 KB each)</li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">from</span> docx <span class="keyword">import</span> Document
+doc = Document()
+doc.add_heading(<span class="string">'Claim Investigation'</span>, <span class="number">1</span>)
+<span class="comment"># Add tables, paragraphs, styling</span>
+doc.save(<span class="string">f'claim_{id}.docx'</span>)
+                        </div>
+                    </div>
+
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">C</span> Images</h4>
+                        <ul>
+                            <li><strong>Tool:</strong> Pillow (PIL) library</li>
+                            <li><strong>Count:</strong> 50 PNG images</li>
+                            <li><strong>Types:</strong> Damage photos (30), Property photos (20)</li>
+                            <li><strong>Content:</strong> Geometric shapes, text overlays, realistic scenes</li>
+                            <li><strong>Size:</strong> ~5 MB total (512x512 pixels, ~100 KB each)</li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">from</span> PIL <span class="keyword">import</span> Image, ImageDraw
+img = Image.new(<span class="string">'RGB'</span>, (<span class="number">512</span>, <span class="number">512</span>))
+draw = ImageDraw.Draw(img)
+<span class="comment"># Draw vehicle, damage indicators</span>
+img.save(<span class="string">f'damage_{id}.png'</span>)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="data-flow">
+                    <div class="data-box">
+                        <div class="data-box-title">Total Files</div>
+                        <div class="data-box-value">350</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="data-box">
+                        <div class="data-box-title">Total Size</div>
+                        <div class="data-box-value">~8.5 MB</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="data-box">
+                        <div class="data-box-title">Time to Generate</div>
+                        <div class="data-box-value">~2 mins</div>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <strong>Why Synthetic Data?</strong> Controlled environment, known ground truth, no privacy concerns, reproducible, free to generate at scale
+                </div>
+            </div>
+
+            <div class="arrow-down">↓</div>
+
+            <!-- PHASE 2: EMBEDDING GENERATION -->
+            <div class="phase">
+                <div class="phase-number">2</div>
+                <div class="phase-title">Embedding Generation</div>
+                <div class="phase-description">
+                    Convert documents into vector representations (embeddings) that databases can search
+                </div>
+
+                <div class="sub-steps">
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">A</span> Dense Embeddings (Text)</h4>
+                        <ul>
+                            <li><strong>Model:</strong> sentence-transformers/all-MiniLM-L6-v2</li>
+                            <li><strong>Dimensions:</strong> 384</li>
+                            <li><strong>Purpose:</strong> Semantic similarity (understands meaning)</li>
+                            <li><strong>Process:</strong> Extract text → Encode → 384-dim vector</li>
+                            <li><strong>Applied to:</strong> PDFs and Word documents</li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">from</span> sentence_transformers <span class="keyword">import</span> SentenceTransformer
+model = SentenceTransformer(<span class="string">'all-MiniLM-L6-v2'</span>)
+text = extract_text_from_pdf(<span class="string">'policy.pdf'</span>)
+vector = model.encode(text)  <span class="comment"># [384 floats]</span>
+                        </div>
+                    </div>
+
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">B</span> Sparse Embeddings (BM25)</h4>
+                        <ul>
+                            <li><strong>Algorithm:</strong> BM25 (Best Matching 25)</li>
+                            <li><strong>Dimensions:</strong> Variable (vocabulary size)</li>
+                            <li><strong>Purpose:</strong> Keyword matching (exact terms)</li>
+                            <li><strong>Process:</strong> Tokenize → TF-IDF weights → Sparse vector</li>
+                            <li><strong>Applied to:</strong> PDFs and Word documents</li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">from</span> pymilvus.model.sparse <span class="keyword">import</span> BM25EmbeddingFunction
+bm25 = BM25EmbeddingFunction()
+tokens = tokenize(text)
+sparse_vector = bm25.encode(tokens)
+<span class="comment"># {word_id: weight, ...} - only non-zero</span>
+                        </div>
+                    </div>
+
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">C</span> Image Embeddings (CLIP)</h4>
+                        <ul>
+                            <li><strong>Model:</strong> CLIP (clip-ViT-B-32)</li>
+                            <li><strong>Dimensions:</strong> 512</li>
+                            <li><strong>Purpose:</strong> Visual similarity (image content)</li>
+                            <li><strong>Process:</strong> Load image → Vision encoder → 512-dim vector</li>
+                            <li><strong>Applied to:</strong> PNG images only</li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">from</span> sentence_transformers <span class="keyword">import</span> SentenceTransformer
+clip = SentenceTransformer(<span class="string">'clip-ViT-B-32'</span>)
+img = Image.open(<span class="string">'damage.png'</span>)
+vector = clip.encode(img)  <span class="comment"># [512 floats]</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-box">
+                    <strong>Embedding Stats:</strong><br>
+                    • Dense vectors: 300 documents × 384 dimensions = 115,200 floats<br>
+                    • Sparse vectors: 300 documents × ~1000 non-zero terms = ~300,000 entries<br>
+                    • Image vectors: 50 images × 512 dimensions = 25,600 floats<br>
+                    • Processing time: ~30 seconds for all embeddings
+                </div>
+            </div>
+
+            <div class="arrow-down">↓</div>
+
+            <!-- PHASE 3: DATABASE SETUP -->
+            <div class="phase">
+                <div class="phase-number">3</div>
+                <div class="phase-title">Database Setup & Data Ingestion</div>
+                <div class="phase-description">
+                    Deploy vector databases and load documents with embeddings
+                </div>
+
+                <div class="comparison-grid">
+                    <div class="comparison-card">
+                        <h4>Milvus 2.5 Setup</h4>
+                        <div class="tools-used">
+                            <span class="tool-badge">Docker</span>
+                            <span class="tool-badge">pymilvus 2.5.0</span>
+                            <span class="tool-badge">Standalone mode</span>
+                        </div>
+                        <div class="code-block" style="margin-top: 1rem;">
+<span class="comment"># Docker deployment</span>
+docker pull milvusdb/milvus:<span class="number">2.5.0</span>
+docker run -d --name milvus \
+  -p <span class="number">19530</span>:<span class="number">19530</span> milvusdb/milvus
+
+<span class="comment"># Create collections</span>
+<span class="keyword">from</span> pymilvus <span class="keyword">import</span> MilvusClient
+client = MilvusClient(<span class="string">"http://localhost:19530"</span>)
+
+<span class="comment"># Dense collection</span>
+client.create_collection(
+    <span class="string">"pdfs_dense"</span>,
+    dimension=<span class="number">384</span>,
+    metric_type=<span class="string">"COSINE"</span>
+)
+
+<span class="comment"># Sparse collection</span>
+client.create_collection(
+    <span class="string">"pdfs_sparse"</span>,
+    dimension=<span class="number">SPARSE</span>,
+    metric_type=<span class="string">"IP"</span>
+)
+
+<span class="comment"># Hybrid collection (both vectors)</span>
+                        </div>
+                        <ul style="margin-top: 1rem;">
+                            <li>Created 7 collections (PDFs dense/sparse/hybrid, Word dense/sparse/hybrid, Images)</li>
+                            <li>Inserted 350 documents with embeddings</li>
+                            <li>Created indexes for fast search (IVF_FLAT)</li>
+                        </ul>
+                    </div>
+
+                    <div class="comparison-card">
+                        <h4>Weaviate Setup</h4>
+                        <div class="tools-used">
+                            <span class="tool-badge">Docker</span>
+                            <span class="tool-badge">weaviate-client 4.9.6</span>
+                            <span class="tool-badge">Standalone mode</span>
+                        </div>
+                        <div class="code-block" style="margin-top: 1rem;">
+<span class="comment"># Docker deployment</span>
+docker pull semitechnologies/weaviate:<span class="number">1.28.0</span>
+docker run -d --name weaviate \
+  -p <span class="number">8080</span>:<span class="number">8080</span> \
+  semitechnologies/weaviate
+
+<span class="comment"># Create schemas</span>
+<span class="keyword">import</span> weaviate
+client = weaviate.connect_to_local()
+
+<span class="comment"># PDF collection</span>
+client.collections.create(
+    name=<span class="string">"PDFs"</span>,
+    vectorizer_config=None,  <span class="comment"># Bring own vectors</span>
+    vector_index_config={
+        <span class="string">"distance"</span>: <span class="string">"cosine"</span>
+    }
+)
+
+<span class="comment"># Word collection</span>
+<span class="comment"># Image collection</span>
+                        </div>
+                        <ul style="margin-top: 1rem;">
+                            <li>Created 3 collections (PDFs, WordDocs, Images)</li>
+                            <li>Inserted 350 documents with dense vectors</li>
+                            <li>Created HNSW indexes for fast search</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="data-flow">
+                    <div class="data-box">
+                        <div class="data-box-title">Milvus Collections</div>
+                        <div class="data-box-value">7</div>
+                    </div>
+                    <div class="data-box">
+                        <div class="data-box-title">Weaviate Collections</div>
+                        <div class="data-box-value">3</div>
+                    </div>
+                    <div class="data-box">
+                        <div class="data-box-title">Total Documents</div>
+                        <div class="data-box-value">350 each</div>
+                    </div>
+                    <div class="data-box">
+                        <div class="data-box-title">Ingestion Time</div>
+                        <div class="data-box-value">~1 min</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow-down">↓</div>
+
+            <!-- PHASE 4: PERFORMANCE BENCHMARKING -->
+            <div class="phase">
+                <div class="phase-number">4</div>
+                <div class="phase-title">Performance Benchmarking (Speed Tests)</div>
+                <div class="phase-description">
+                    Measure how fast each database can retrieve top 5 relevant documents
+                </div>
+
+                <div class="sub-steps">
+                    <div class="sub-step test-type">
+                        <h4><span class="sub-step-icon">1</span> PDF Search Speed</h4>
+                        <ul>
+                            <li><strong>Query count:</strong> 10 random queries</li>
+                            <li><strong>Query type:</strong> "Find auto insurance policy for sedan"</li>
+                            <li><strong>Results retrieved:</strong> Top 5 documents</li>
+                            <li><strong>Metric:</strong> Average query time (milliseconds)</li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">import</span> time
+times = []
+<span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">10</span>):
+    query = random_query()
+    vector = model.encode(query)
+
+    start = time.time()
+    results = client.search(
+        collection=<span class="string">"pdfs_dense"</span>,
+        data=[vector],
+        limit=<span class="number">5</span>
+    )
+    elapsed = (time.time() - start) * <span class="number">1000</span>
+    times.append(elapsed)
+
+avg_time = sum(times) / len(times)
+                        </div>
+                        <div class="metric-box">
+                            <strong>Results:</strong><br>
+                            • Milvus Dense: 1.26 ms<br>
+                            • Milvus Sparse: 1.38 ms<br>
+                            • Milvus Hybrid: 2.58 ms<br>
+                            • Weaviate: 2.55 ms
+                        </div>
+                    </div>
+
+                    <div class="sub-step test-type">
+                        <h4><span class="sub-step-icon">2</span> Word Doc Search Speed</h4>
+                        <ul>
+                            <li><strong>Query count:</strong> 10 random queries</li>
+                            <li><strong>Query type:</strong> "Find claims investigation report"</li>
+                            <li><strong>Results retrieved:</strong> Top 5 documents</li>
+                            <li><strong>Metric:</strong> Average query time (milliseconds)</li>
+                        </ul>
+                        <div class="metric-box">
+                            <strong>Results:</strong><br>
+                            • Milvus Dense: 0.99 ms (59% faster)<br>
+                            • Milvus Sparse: 1.14 ms (52% faster)<br>
+                            • Milvus Hybrid: 2.34 ms (3% faster)<br>
+                            • Weaviate: 2.41 ms
+                        </div>
+                    </div>
+
+                    <div class="sub-step test-type">
+                        <h4><span class="sub-step-icon">3</span> Image Search Speed</h4>
+                        <ul>
+                            <li><strong>Query count:</strong> 10 random queries</li>
+                            <li><strong>Query type:</strong> "Find vehicle damage photo"</li>
+                            <li><strong>Results retrieved:</strong> Top 5 images</li>
+                            <li><strong>Metric:</strong> Average query time (milliseconds)</li>
+                        </ul>
+                        <div class="metric-box">
+                            <strong>Results:</strong><br>
+                            • Milvus Dense: 1.17 ms (64% faster)<br>
+                            • Weaviate: 3.25 ms
+                        </div>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <strong>Speed Testing Approach:</strong><br>
+                    1. Warmed up databases with 5 initial queries (not counted)<br>
+                    2. Ran 10 queries per test type<br>
+                    3. Measured only search time (exclude embedding generation)<br>
+                    4. Calculated average and stored in JSON<br>
+                    5. Repeated 3 times and took median to avoid outliers
+                </div>
+            </div>
+
+            <div class="arrow-down">↓</div>
+
+            <!-- PHASE 5: QUALITY BENCHMARKING -->
+            <div class="phase">
+                <div class="phase-number">5</div>
+                <div class="phase-title">Quality Benchmarking (Retrieval Accuracy)</div>
+                <div class="phase-description">
+                    Measure how accurate the search results are (not just how fast)
+                </div>
+
+                <div class="sub-steps">
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">A</span> Ground Truth Creation</h4>
+                        <ul>
+                            <li><strong>Method:</strong> Policy type similarity scoring</li>
+                            <li><strong>Relevance scale:</strong> 0 (irrelevant) to 3 (perfect match)</li>
+                            <li><strong>Scoring rules:</strong>
+                                <ul style="margin-left: 1rem; margin-top: 0.3rem;">
+                                    <li>Score 3: Same document (perfect)</li>
+                                    <li>Score 2: Same policy type (relevant)</li>
+                                    <li>Score 1: Different policy type (somewhat relevant)</li>
+                                    <li>Score 0: Not a policy (irrelevant)</li>
+                                </ul>
+                            </li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">def</span> create_ground_truth(query_doc, all_docs):
+    relevance = {}
+    <span class="keyword">for</span> doc <span class="keyword">in</span> all_docs:
+        <span class="keyword">if</span> doc.id == query_doc.id:
+            relevance[doc.id] = <span class="number">3</span>  <span class="comment"># Same doc</span>
+        <span class="keyword">elif</span> doc.type == query_doc.type:
+            relevance[doc.id] = <span class="number">2</span>  <span class="comment"># Same type</span>
+        <span class="keyword">else</span>:
+            relevance[doc.id] = <span class="number">1</span>  <span class="comment"># Different</span>
+    <span class="keyword">return</span> relevance
+                        </div>
+                    </div>
+
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">B</span> Quality Metrics</h4>
+                        <ul>
+                            <li><strong>Precision@5:</strong> % of top 5 that are relevant (≥2)</li>
+                            <li><strong>Recall@5:</strong> % of all relevant docs found in top 5</li>
+                            <li><strong>NDCG@5:</strong> Ranking quality (0-1, higher better)</li>
+                            <li><strong>MRR:</strong> Position of first relevant result (1/rank)</li>
+                        </ul>
+                        <div class="code-block">
+<span class="keyword">def</span> precision_at_k(results, ground_truth, k=<span class="number">5</span>):
+    top_k = results[:k]
+    relevant = [<span class="number">1</span> <span class="keyword">for</span> doc <span class="keyword">in</span> top_k
+                <span class="keyword">if</span> ground_truth[doc] >= <span class="number">2</span>]
+    <span class="keyword">return</span> len(relevant) / k
+
+<span class="keyword">def</span> ndcg_at_k(results, ground_truth, k=<span class="number">5</span>):
+    dcg = sum(rel / log2(i+<span class="number">2</span>)
+              <span class="keyword">for</span> i, doc <span class="keyword">in</span> enumerate(results[:k])
+              <span class="keyword">for</span> rel <span class="keyword">in</span> [ground_truth[doc]])
+    ideal = sorted(ground_truth.values(),
+                   reverse=<span class="keyword">True</span>)[:k]
+    idcg = sum(rel / log2(i+<span class="number">2</span>)
+               <span class="keyword">for</span> i, rel <span class="keyword">in</span> enumerate(ideal))
+    <span class="keyword">return</span> dcg / idcg <span class="keyword">if</span> idcg > <span class="number">0</span> <span class="keyword">else</span> <span class="number">0</span>
+                        </div>
+                    </div>
+
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">C</span> Evaluation Process</h4>
+                        <ul>
+                            <li><strong>Test queries:</strong> 10 random PDF documents</li>
+                            <li><strong>For each query:</strong>
+                                <ul style="margin-left: 1rem; margin-top: 0.3rem;">
+                                    <li>1. Get top 100 results from database</li>
+                                    <li>2. Create ground truth for this query</li>
+                                    <li>3. Calculate all 4 metrics</li>
+                                    <li>4. Average across all queries</li>
+                                </ul>
+                            </li>
+                        </ul>
+                        <div class="code-block">
+metrics = {<span class="string">"precision"</span>: [], <span class="string">"recall"</span>: [],
+           <span class="string">"ndcg"</span>: [], <span class="string">"mrr"</span>: []}
+
+<span class="keyword">for</span> query_doc <span class="keyword">in</span> random.sample(pdfs, <span class="number">10</span>):
+    results = search(query_doc, limit=<span class="number">100</span>)
+    truth = create_ground_truth(query_doc, pdfs)
+
+    metrics[<span class="string">"precision"</span>].append(
+        precision_at_k(results, truth)
+    )
+    <span class="comment"># ... calculate other metrics ...</span>
+
+<span class="comment"># Average all metrics</span>
+avg_metrics = {k: sum(v)/len(v)
+               <span class="keyword">for</span> k, v <span class="keyword">in</span> metrics.items()}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-box">
+                    <strong>Quality Results (PDF Search):</strong><br>
+                    <table style="width: 100%; margin-top: 0.5rem; border-collapse: collapse;">
+                        <tr style="background: #1976d2; color: white;">
+                            <th style="padding: 0.5rem; text-align: left;">Search Type</th>
+                            <th style="padding: 0.5rem;">Precision@5</th>
+                            <th style="padding: 0.5rem;">NDCG@5</th>
+                            <th style="padding: 0.5rem;">MRR</th>
+                        </tr>
+                        <tr style="background: white;">
+                            <td style="padding: 0.5rem;">Milvus Dense</td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>86%</strong></td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>0.95</strong></td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>1.00</strong></td>
+                        </tr>
+                        <tr style="background: #f5f5f5;">
+                            <td style="padding: 0.5rem;">Milvus Sparse</td>
+                            <td style="padding: 0.5rem; text-align: center;">66%</td>
+                            <td style="padding: 0.5rem; text-align: center;">0.88</td>
+                            <td style="padding: 0.5rem; text-align: center;">1.00</td>
+                        </tr>
+                        <tr style="background: white;">
+                            <td style="padding: 0.5rem;">Milvus Hybrid</td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>86%</strong></td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>0.95</strong></td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>1.00</strong></td>
+                        </tr>
+                        <tr style="background: #e3f2fd;">
+                            <td style="padding: 0.5rem;"><strong>Weaviate</strong></td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>86%</strong></td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>0.95</strong></td>
+                            <td style="padding: 0.5rem; text-align: center;"><strong>1.00</strong></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="highlight">
+                    <strong>Key Finding:</strong> Milvus Dense and Weaviate have identical quality (86% precision, 0.95 NDCG), but Milvus is 50% faster
+                </div>
+            </div>
+
+            <div class="arrow-down">↓</div>
+
+            <!-- PHASE 6: VISUALIZATION -->
+            <div class="phase">
+                <div class="phase-number">6</div>
+                <div class="phase-title">Visualization & Reporting</div>
+                <div class="phase-description">
+                    Create charts and reports to communicate findings
+                </div>
+
+                <div class="sub-steps">
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">A</span> Visualization Tools</h4>
+                        <ul>
+                            <li><strong>Library:</strong> Matplotlib + Seaborn</li>
+                            <li><strong>Charts created:</strong> 5 professional visualizations</li>
+                            <li><strong>Output format:</strong> PNG (300 DPI, presentation quality)</li>
+                        </ul>
+                        <div class="tools-used" style="margin-top: 0.5rem;">
+                            <span class="tool-badge">matplotlib</span>
+                            <span class="tool-badge">seaborn</span>
+                            <span class="tool-badge">pandas</span>
+                            <span class="tool-badge">numpy</span>
+                        </div>
+                    </div>
+
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">B</span> Charts Generated</h4>
+                        <ul>
+                            <li>Speed comparison bar charts (PDF, Word, Image)</li>
+                            <li>Quality metrics comparison (Precision, NDCG, MRR)</li>
+                            <li>Speed vs Quality scatter plot (winner zone)</li>
+                            <li>Performance matrix heatmap (all metrics)</li>
+                            <li>Combined 4-panel dashboard</li>
+                        </ul>
+                    </div>
+
+                    <div class="sub-step">
+                        <h4><span class="sub-step-icon">C</span> Reports Created</h4>
+                        <ul>
+                            <li><strong>JSON results:</strong> Raw benchmark data</li>
+                            <li><strong>HTML comprehensive:</strong> Full report with all details</li>
+                            <li><strong>HTML simplified:</strong> Executive-friendly summary</li>
+                            <li><strong>Methodology doc:</strong> This document</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- SUMMARY -->
+        <h2 style="margin-top: 3rem;">Summary: End-to-End Process</h2>
+        <div class="data-flow" style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 2rem;">
+            <div class="data-box">
+                <div class="data-box-title">Step 1</div>
+                <div class="data-box-value">Generate Data</div>
+                <div style="font-size: 0.8rem; margin-top: 0.3rem;">350 documents</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="data-box">
+                <div class="data-box-title">Step 2</div>
+                <div class="data-box-value">Create Embeddings</div>
+                <div style="font-size: 0.8rem; margin-top: 0.3rem;">Dense + Sparse</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="data-box">
+                <div class="data-box-title">Step 3</div>
+                <div class="data-box-value">Load Databases</div>
+                <div style="font-size: 0.8rem; margin-top: 0.3rem;">Milvus + Weaviate</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="data-box">
+                <div class="data-box-title">Step 4</div>
+                <div class="data-box-value">Speed Tests</div>
+                <div style="font-size: 0.8rem; margin-top: 0.3rem;">10 queries each</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="data-box">
+                <div class="data-box-title">Step 5</div>
+                <div class="data-box-value">Quality Tests</div>
+                <div style="font-size: 0.8rem; margin-top: 0.3rem;">4 metrics</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="data-box">
+                <div class="data-box-title">Step 6</div>
+                <div class="data-box-value">Results</div>
+                <div style="font-size: 0.8rem; margin-top: 0.3rem;">Charts + Reports</div>
+            </div>
+        </div>
+
+        <div class="winner" style="margin-top: 2rem; background: linear-gradient(135deg, #d4edda 0%, #c8e6c9 100%); border-left: 6px solid #28a745; padding: 2rem;">
+            <h3 style="color: #28a745; margin: 0 0 1rem 0;">Final Verdict: Milvus 2.5 Dense Search</h3>
+            <div class="data-flow" style="background: white; padding: 1.5rem; border-radius: 8px;">
+                <div class="data-box" style="border: 2px solid #28a745;">
+                    <div class="data-box-title">Speed Advantage</div>
+                    <div class="data-box-value" style="color: #28a745;">50-64% faster</div>
+                </div>
+                <span class="flow-arrow">+</span>
+                <div class="data-box" style="border: 2px solid #2196f3;">
+                    <div class="data-box-title">Quality Match</div>
+                    <div class="data-box-value" style="color: #2196f3;">86% precision</div>
+                </div>
+                <span class="flow-arrow">=</span>
+                <div class="data-box" style="border: 2px solid #28a745; background: #e8f5e9;">
+                    <div class="data-box-title">Clear Winner</div>
+                    <div class="data-box-value" style="color: #28a745;">Milvus 2.5</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid #e0e0e0; color: #666;">
+            <p><strong>Total Time Investment:</strong> ~5 minutes (data generation + embedding + ingestion + benchmarks)</p>
+            <p><strong>Reproducibility:</strong> 100% (all code automated, no manual steps)</p>
+            <p><strong>Cost:</strong> $0 (all open-source tools, synthetic data)</p>
+        </div>
+    </div>
+</body>
+</html>
