@@ -254,18 +254,28 @@ class Milvus25HybridClient:
         policy_ids = [doc.get("policy_id", "UNKNOWN") for doc in documents]
         policy_types = [doc.get("policy_type", "UNKNOWN") for doc in documents]
 
-        print(f"  Inserting {len(documents)} documents...")
-        insert_result = collection.insert([
-            filenames,
-            texts_truncated,
-            policy_ids,
-            policy_types,
-            dense_embeddings,
-            sparse_embeddings
-        ])
+        # Insert in batches to avoid gRPC message size limit
+        batch_size = 5000
+        total_inserted = 0
+
+        print(f"  Inserting {len(documents)} documents in batches of {batch_size}...")
+        for i in range(0, len(documents), batch_size):
+            end_idx = min(i + batch_size, len(documents))
+
+            insert_result = collection.insert([
+                filenames[i:end_idx],
+                texts_truncated[i:end_idx],
+                policy_ids[i:end_idx],
+                policy_types[i:end_idx],
+                dense_embeddings[i:end_idx],
+                sparse_embeddings[i:end_idx]
+            ])
+
+            total_inserted += len(insert_result.primary_keys)
+            print(f"    Batch {i//batch_size + 1}: Inserted {len(insert_result.primary_keys)} documents")
 
         collection.flush()
-        print(f"✓ Inserted {len(insert_result.primary_keys)} documents")
+        print(f"✓ Inserted {total_inserted} documents total")
 
     def dense_search(
         self,

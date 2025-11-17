@@ -295,6 +295,10 @@ def main():
 
     args = parser.parse_args()
 
+    # Change to scripts directory if not already there
+    script_dir = Path(__file__).parent
+    os.chdir(script_dir)
+
     # Initialize processor
     processor = MultiModalProcessor()
 

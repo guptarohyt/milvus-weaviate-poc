@@ -1,234 +1,191 @@
+#!/usr/bin/env python3
 """
-Generate synthetic reinsurance data for POC testing.
-Creates policies, claims, and knowledge base articles.
+Generate custom-sized dataset with configurable splits.
+
+Usage examples:
+  # Default 10K dataset
+  python generate_custom_dataset.py
+
+  # Custom split
+  python generate_custom_dataset.py --pdfs 8000 --word 5000 --images 3000
+
+  # Just PDFs
+  python generate_custom_dataset.py --pdfs 50000 --word 0 --images 0
+
+  # Proportional scaling (e.g., 100K total with same ratios)
+  python generate_custom_dataset.py --total 100000 --pdf-ratio 0.5 --word-ratio 0.3 --image-ratio 0.2
 """
 
-import json
-import random
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import List, Dict
-from faker import Faker
+import sys
+import os
+import argparse
 
-fake = Faker()
-Faker.seed(42)
-random.seed(42)
+# Change to scripts directory so relative paths work
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# Reinsurance-specific data
-POLICY_TYPES = [
-    "Property Catastrophe", "Casualty Excess of Loss", "Marine & Aviation",
-    "Professional Liability", "Workers Compensation", "Cyber Risk",
-    "Life & Health", "Agriculture", "Political Risk", "Terrorism"
-]
+# Add parent directory to path to import generate_multimodal_data
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-PERILS = [
-    "Hurricane", "Earthquake", "Flood", "Wildfire", "Tornado",
-    "Hail", "Wind", "Freeze", "Cyber Attack", "Professional Error"
-]
-
-TERRITORIES = [
-    "United States", "European Union", "United Kingdom", "Japan",
-    "Australia", "Canada", "Asia Pacific", "Latin America", "Worldwide"
-]
-
-CLAIM_CATEGORIES = [
-    "Natural Catastrophe", "Liability", "Professional Indemnity",
-    "Property Damage", "Business Interruption", "Cyber Incident",
-    "Medical Malpractice", "Product Liability", "Environmental"
-]
-
-KNOWLEDGE_TOPICS = [
-    "Underwriting Guidelines", "Regulatory Compliance", "Claims Handling",
-    "Risk Assessment", "Premium Calculation", "Policy Wording",
-    "Reinsurance Treaties", "Catastrophe Modeling", "Loss Reserves",
-    "Actuarial Standards"
-]
+from generate_multimodal_data import generate_all_pdfs, generate_all_word_docs, generate_all_images
 
 
-def generate_policies(count: int = 1000) -> List[Dict]:
-    """Generate synthetic reinsurance policies."""
-    policies = []
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Generate custom-sized multi-modal dataset',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate 10K dataset (default)
+  %(prog)s
 
-    for i in range(count):
-        policy_type = random.choice(POLICY_TYPES)
-        inception_date = fake.date_between(start_date='-5y', end_date='today')
-        expiry_date = inception_date + timedelta(days=365)
+  # Generate 100K dataset with same ratios
+  %(prog)s --total 100000
 
-        policy = {
-            "id": f"POL-{i+1:06d}",
-            "policy_type": policy_type,
-            "cedent": fake.company(),
-            "inception_date": inception_date.isoformat(),
-            "expiry_date": expiry_date.isoformat(),
-            "limit": random.randint(1, 100) * 1000000,
-            "premium": random.randint(100, 10000) * 1000,
-            "attachment_point": random.randint(1, 50) * 1000000,
-            "territory": random.choice(TERRITORIES),
-            "perils_covered": random.sample(PERILS, k=random.randint(1, 4)),
-            "layers": random.randint(1, 5),
-            "description": f"{policy_type} reinsurance policy providing coverage for "
-                          f"{fake.company()} across {random.choice(TERRITORIES)}. "
-                          f"The policy covers catastrophic losses exceeding the attachment point "
-                          f"with a maximum limit defined. Risk premium calculated based on "
-                          f"historical loss data and catastrophe modeling.",
-            "metadata": {
-                "broker": fake.company(),
-                "rating": random.choice(["A++", "A+", "A", "A-", "BBB+"]),
-                "renewable": random.choice([True, False])
-            }
-        }
-        policies.append(policy)
+  # Custom split
+  %(prog)s --pdfs 8000 --word 5000 --images 3000
 
-    return policies
+  # Only PDFs (for large-scale testing)
+  %(prog)s --pdfs 50000 --word 0 --images 0
 
-
-def generate_claims(count: int = 2000) -> List[Dict]:
-    """Generate synthetic insurance claims."""
-    claims = []
-
-    for i in range(count):
-        loss_date = fake.date_between(start_date='-3y', end_date='today')
-        report_date = loss_date + timedelta(days=random.randint(1, 90))
-        category = random.choice(CLAIM_CATEGORIES)
-
-        claim = {
-            "id": f"CLM-{i+1:06d}",
-            "policy_id": f"POL-{random.randint(1, 1000):06d}",
-            "category": category,
-            "loss_date": loss_date.isoformat(),
-            "report_date": report_date.isoformat(),
-            "loss_amount": random.randint(100, 50000) * 1000,
-            "paid_amount": random.randint(50, 45000) * 1000,
-            "reserve_amount": random.randint(0, 10000) * 1000,
-            "status": random.choice(["Open", "Closed", "Pending", "In Review"]),
-            "location": fake.city() + ", " + fake.country(),
-            "peril": random.choice(PERILS),
-            "description": f"{category} claim arising from {random.choice(PERILS)} event "
-                          f"occurring on {loss_date.strftime('%B %d, %Y')}. "
-                          f"The insured reported significant damage to property and subsequent "
-                          f"business interruption. Detailed investigation conducted by loss adjuster. "
-                          f"Settlement negotiations ongoing with consideration of policy terms, "
-                          f"exclusions, and applicable deductibles.",
-            "metadata": {
-                "adjuster": fake.name(),
-                "complexity": random.choice(["Low", "Medium", "High", "Very High"]),
-                "fraud_score": round(random.uniform(0, 1), 3),
-                "num_claimants": random.randint(1, 50)
-            }
-        }
-        claims.append(claim)
-
-    return claims
-
-
-def generate_knowledge_base(count: int = 500) -> List[Dict]:
-    """Generate synthetic knowledge base articles."""
-    articles = []
-
-    for i in range(count):
-        topic = random.choice(KNOWLEDGE_TOPICS)
-
-        article = {
-            "id": f"KB-{i+1:06d}",
-            "title": f"{topic}: {fake.catch_phrase()}",
-            "topic": topic,
-            "content": generate_article_content(topic),
-            "created_date": fake.date_between(start_date='-2y', end_date='today').isoformat(),
-            "author": fake.name(),
-            "version": f"{random.randint(1, 5)}.{random.randint(0, 9)}",
-            "tags": random.sample(KNOWLEDGE_TOPICS, k=random.randint(2, 4)),
-            "metadata": {
-                "department": random.choice(["Underwriting", "Claims", "Actuarial", "Legal", "Risk Management"]),
-                "views": random.randint(10, 5000),
-                "helpful_votes": random.randint(0, 500)
-            }
-        }
-        articles.append(article)
-
-    return articles
-
-
-def generate_article_content(topic: str) -> str:
-    """Generate realistic article content based on topic."""
-    intros = {
-        "Underwriting Guidelines": "Underwriting guidelines establish the framework for assessing and accepting reinsurance risks. "
-                                   "These guidelines ensure consistent evaluation of cedent relationships, loss histories, and "
-                                   "pricing adequacy across all territories and lines of business.",
-
-        "Regulatory Compliance": "Regulatory compliance in reinsurance requires adherence to international standards including "
-                                "Solvency II, IFRS 17, and local insurance regulations. Organizations must maintain proper "
-                                "documentation, capital requirements, and reporting procedures.",
-
-        "Claims Handling": "Effective claims handling processes are critical for maintaining cedent relationships and "
-                          "accurate loss reserves. This includes prompt investigation, fair evaluation, and timely "
-                          "settlement of valid claims while identifying potentially fraudulent submissions.",
-
-        "Risk Assessment": "Risk assessment in reinsurance involves evaluating catastrophe exposure, accumulation risk, "
-                          "and portfolio optimization. Actuarial models, historical loss data, and forward-looking "
-                          "scenarios inform pricing and capacity decisions.",
-
-        "Premium Calculation": "Premium calculation methodology considers expected losses, loss adjustment expenses, "
-                              "operational costs, cost of capital, and profit margin. Technical pricing uses exposure "
-                              "rating, experience rating, and catastrophe modeling approaches.",
-    }
-
-    intro = intros.get(topic, "This article provides guidance on reinsurance best practices and industry standards. ")
-
-    body = (
-        f"{intro} "
-        f"Key considerations include maintaining accurate records, following established procedures, "
-        f"and ensuring compliance with applicable regulations. Regular reviews and updates ensure "
-        f"practices remain current with evolving market conditions and regulatory requirements. "
-        f"Collaboration between underwriting, claims, actuarial, and legal departments is essential "
-        f"for comprehensive risk management. Documentation should be thorough and readily accessible "
-        f"for audit purposes and internal reference."
+  # Custom ratios
+  %(prog)s --total 50000 --pdf-ratio 0.6 --word-ratio 0.3 --image-ratio 0.1
+        """
     )
 
-    return body
+    # Method 1: Specify exact counts
+    parser.add_argument('--pdfs', type=int, help='Number of PDF documents to generate')
+    parser.add_argument('--word', type=int, help='Number of Word documents to generate')
+    parser.add_argument('--images', type=int, help='Number of images to generate')
+
+    # Method 2: Specify total + ratios
+    parser.add_argument('--total', type=int, help='Total number of documents')
+    parser.add_argument('--pdf-ratio', type=float, default=0.5,
+                       help='Ratio of PDFs (default: 0.5 = 50%%)')
+    parser.add_argument('--word-ratio', type=float, default=0.3,
+                       help='Ratio of Word docs (default: 0.3 = 30%%)')
+    parser.add_argument('--image-ratio', type=float, default=0.2,
+                       help='Ratio of Images (default: 0.2 = 20%%)')
+
+    # Options
+    parser.add_argument('--skip-confirmation', action='store_true',
+                       help='Skip confirmation prompt')
+
+    return parser.parse_args()
+
+
+def calculate_counts(args):
+    """Calculate document counts based on arguments."""
+
+    # Method 1: Exact counts specified
+    if args.pdfs is not None or args.word is not None or args.images is not None:
+        pdf_count = args.pdfs if args.pdfs is not None else 5000
+        word_count = args.word if args.word is not None else 3000
+        image_count = args.images if args.images is not None else 2000
+        return pdf_count, word_count, image_count
+
+    # Method 2: Total + ratios
+    if args.total is not None:
+        total = args.total
+        # Validate ratios sum to ~1.0
+        ratio_sum = args.pdf_ratio + args.word_ratio + args.image_ratio
+        if abs(ratio_sum - 1.0) > 0.01:
+            print(f"⚠️  Warning: Ratios sum to {ratio_sum:.2f}, not 1.0. Normalizing...")
+            pdf_ratio = args.pdf_ratio / ratio_sum
+            word_ratio = args.word_ratio / ratio_sum
+            image_ratio = args.image_ratio / ratio_sum
+        else:
+            pdf_ratio = args.pdf_ratio
+            word_ratio = args.word_ratio
+            image_ratio = args.image_ratio
+
+        pdf_count = int(total * pdf_ratio)
+        word_count = int(total * word_ratio)
+        image_count = int(total * image_ratio)
+
+        return pdf_count, word_count, image_count
+
+    # Default: 10K dataset
+    return 5000, 3000, 2000
+
+
+def estimate_resources(pdf_count, word_count, image_count):
+    """Estimate time and disk space needed."""
+    total = pdf_count + word_count + image_count
+
+    # Time estimates (based on benchmarks)
+    pdf_time = pdf_count / 30  # ~30 PDFs/second
+    word_time = word_count / 50  # ~50 Word docs/second
+    image_time = image_count / 100  # ~100 images/second
+    total_time_min = (pdf_time + word_time + image_time) / 60
+
+    # Size estimates
+    pdf_size_mb = (pdf_count * 10) / 1024  # ~10 KB per PDF
+    word_size_mb = (word_count * 13) / 1024  # ~13 KB per Word
+    image_size_mb = (image_count * 100) / 1024  # ~100 KB per image
+    embedding_size_mb = total * 0.002  # ~2 KB per doc for embeddings
+    total_size_mb = pdf_size_mb + word_size_mb + image_size_mb + embedding_size_mb
+
+    return total_time_min, total_size_mb
 
 
 def main():
-    """Generate all synthetic data and save to files."""
-    print("Generating synthetic reinsurance data...")
+    args = parse_args()
 
-    # Create data directory
-    data_dir = Path("data")
-    data_dir.mkdir(exist_ok=True)
+    pdf_count, word_count, image_count = calculate_counts(args)
+    total_count = pdf_count + word_count + image_count
 
-    # Generate data
-    print("  - Generating policies...")
-    policies = generate_policies(1000)
+    print("="*70)
+    print(f"Generating {total_count:,} Document Dataset")
+    print("="*70)
+    print()
+    print("Distribution:")
+    print(f"  • {pdf_count:,} PDFs ({pdf_count/total_count*100:.1f}%)")
+    print(f"  • {word_count:,} Word documents ({word_count/total_count*100:.1f}%)")
+    print(f"  • {image_count:,} Images ({image_count/total_count*100:.1f}%)")
+    print()
 
-    print("  - Generating claims...")
-    claims = generate_claims(2000)
+    time_min, size_mb = estimate_resources(pdf_count, word_count, image_count)
+    print(f"Estimated time: ~{time_min:.0f} minutes")
+    print(f"Estimated size: ~{size_mb:.0f} MB (including embeddings)")
+    print()
 
-    print("  - Generating knowledge base...")
-    knowledge_base = generate_knowledge_base(500)
+    if not args.skip_confirmation:
+        response = input("Proceed with generation? (yes/no): ").strip().lower()
+        if response not in ['yes', 'y']:
+            print("Aborted.")
+            return
 
-    # Save to JSON files
-    print("\nSaving data to files...")
+    print("Starting generation...")
 
-    with open(data_dir / "policies.json", "w") as f:
-        json.dump(policies, f, indent=2)
-    print(f"  ✓ Saved {len(policies)} policies")
+    # Generate PDFs
+    if pdf_count > 0:
+        print("\n" + "="*70)
+        print(f"STEP 1/3: Generating {pdf_count:,} PDF documents...")
+        print("="*70)
+        generate_all_pdfs(count=pdf_count)
 
-    with open(data_dir / "claims.json", "w") as f:
-        json.dump(claims, f, indent=2)
-    print(f"  ✓ Saved {len(claims)} claims")
+    # Generate Word docs
+    if word_count > 0:
+        print("\n" + "="*70)
+        print(f"STEP 2/3: Generating {word_count:,} Word documents...")
+        print("="*70)
+        generate_all_word_docs(count=word_count)
 
-    with open(data_dir / "knowledge_base.json", "w") as f:
-        json.dump(knowledge_base, f, indent=2)
-    print(f"  ✓ Saved {len(knowledge_base)} knowledge base articles")
+    # Generate Images
+    if image_count > 0:
+        print("\n" + "="*70)
+        print(f"STEP 3/3: Generating {image_count:,} Images...")
+        print("="*70)
+        generate_all_images(count=image_count)
 
-    # Print statistics
-    print("\n" + "="*50)
-    print("Data Generation Summary")
-    print("="*50)
-    print(f"Total policies: {len(policies)}")
-    print(f"Total claims: {len(claims)}")
-    print(f"Total knowledge articles: {len(knowledge_base)}")
-    print(f"Total records: {len(policies) + len(claims) + len(knowledge_base)}")
-    print("\nData saved to ./data/ directory")
+    print("\n" + "="*70)
+    print(f"✓ {total_count:,} Documents Generated Successfully!")
+    print("="*70)
+    print()
+    print("Next steps:")
+    print("  1. Run: python scripts/process_multimodal_data.py")
+    print("  2. Load into databases and run benchmarks")
+    print()
 
 
 if __name__ == "__main__":

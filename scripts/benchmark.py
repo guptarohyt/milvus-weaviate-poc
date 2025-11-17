@@ -1,447 +1,526 @@
+#!/usr/bin/env python3
 """
-Benchmark script to compare Milvus and Weaviate performance.
-Tests query performance, scalability, and features.
+Phase 3 FAIR Benchmarks: Milvus 2.5 vs Weaviate (Same Features Tested)
+
+This script provides a FAIR comparison by testing the same features on both systems:
+- Dense vector search (semantic similarity)
+- Sparse/keyword search (BM25)
+- Hybrid search (dense + sparse combined)
+
+Both Milvus 2.5 and Weaviate 1.27.5 support all three search types.
 """
 
 import json
 import time
-import statistics
+import numpy as np
 from pathlib import Path
-from typing import Dict, List, Callable
-import psutil
-from milvus_client import MilvusReinsuranceClient
-from weaviate_client import WeaviateReinsuranceClient
+from typing import List, Dict, Any
+import statistics
+
+from milvus_25_hybrid_client import Milvus25HybridClient
+import weaviate
 
 
-class BenchmarkRunner:
-    """Run benchmarks comparing Milvus and Weaviate."""
+def load_processed_data():
+    """Load all processed multi-modal data."""
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = Path(os.path.join(script_dir, "..", "data", "multimodal", "processed"))
 
-    def __init__(self):
-        self.milvus_client = None
-        self.weaviate_client = None
-        self.results = {
-            "milvus": {},
-            "weaviate": {}
-        }
+    print(f"DEBUG: Loading from: {data_dir.resolve()}")
 
-    def setup(self, data_size: int = 1000):
-        """Setup both clients and load data."""
-        print("="*60)
-        print("BENCHMARK SETUP")
-        print("="*60)
+    pdf_file = data_dir / "pdfs_processed.json"
+    print(f"DEBUG: PDF file: {pdf_file}, exists: {pdf_file.exists()}")
+    with open(pdf_file, "r") as f:
+        pdfs = json.load(f)
+    print(f"DEBUG: Loaded {len(pdfs)} PDFs from file")
 
-        # Load data
-        data_dir = Path("data")
-        with open(data_dir / "policies.json") as f:
-            policies = json.load(f)
-        with open(data_dir / "claims.json") as f:
-            claims = json.load(f)
-        with open(data_dir / "knowledge_base.json") as f:
-            knowledge = json.load(f)
+    with open(data_dir / "word_docs_processed.json", "r") as f:
+        word_docs = json.load(f)
+    print(f"DEBUG: Loaded {len(word_docs)} Word docs from file")
 
-        # Limit data size
-        policies = policies[:min(data_size, len(policies))]
-        claims = claims[:min(data_size * 2, len(claims))]
-        knowledge = knowledge[:min(data_size // 2, len(knowledge))]
+    with open(data_dir / "images_processed.json", "r") as f:
+        images = json.load(f)
+    print(f"DEBUG: Loaded {len(images)} images from file")
 
-        print(f"\nData size: {len(policies)} policies, {len(claims)} claims, {len(knowledge)} knowledge articles")
+    return pdfs, word_docs, images
 
-        # Setup Milvus
-        print("\n--- Setting up Milvus ---")
-        self.milvus_client = MilvusReinsuranceClient()
-        start_time = time.time()
-        self.milvus_client.connect()
-        self.milvus_client.insert_policies(policies)
-        self.milvus_client.insert_claims(claims)
-        self.milvus_client.insert_knowledge(knowledge)
-        self.milvus_client.load_collections()
-        milvus_setup_time = time.time() - start_time
 
-        # Setup Weaviate
-        print("\n--- Setting up Weaviate ---")
-        self.weaviate_client = WeaviateReinsuranceClient()
-        start_time = time.time()
-        self.weaviate_client.connect()
-        self.weaviate_client.create_collections()
-        self.weaviate_client.insert_policies(policies)
-        self.weaviate_client.insert_claims(claims)
-        self.weaviate_client.insert_knowledge(knowledge)
-        weaviate_setup_time = time.time() - start_time
+def setup_milvus_25(pdfs, word_docs, images):
+    """Setup Milvus 2.5 with hybrid search collections."""
+    client = Milvus25HybridClient(host="localhost", port="19530")
+    client.connect()
 
-        # Record setup times
-        self.results["milvus"]["setup_time"] = milvus_setup_time
-        self.results["weaviate"]["setup_time"] = weaviate_setup_time
+    print("\n[Milvus 2.5] Creating hybrid collections...")
 
-        print(f"\n✓ Milvus setup time: {milvus_setup_time:.2f}s")
-        print(f"✓ Weaviate setup time: {weaviate_setup_time:.2f}s")
+    # Create collections for each data type
+    pdf_collection = client.create_hybrid_collection("phase3_fair_pdfs", dense_dim=384)
+    word_collection = client.create_hybrid_collection("phase3_fair_word", dense_dim=384)
+    image_collection = client.create_hybrid_collection("phase3_fair_images", dense_dim=512)
 
-    def benchmark_query_performance(self):
-        """Benchmark query performance for both systems."""
-        print("\n" + "="*60)
-        print("QUERY PERFORMANCE BENCHMARK")
-        print("="*60)
+    # Create indexes
+    print("[Milvus 2.5] Creating indexes...")
+    client.create_indexes(pdf_collection)
+    client.create_indexes(word_collection)
+    client.create_indexes(image_collection)
 
-        # Test queries for each use case
-        policy_queries = [
-            "property catastrophe coverage for hurricane events",
-            "cyber risk reinsurance for financial institutions",
-            "professional liability coverage for healthcare providers"
+    # Insert data
+    print("[Milvus 2.5] Inserting PDFs...")
+    pdf_docs = [{"filename": p["filename"], "text": p["text"],
+                 "policy_id": p.get("id", "UNKNOWN"),
+                 "policy_type": p.get("type", "pdf")}
+                for p in pdfs]
+    pdf_embeddings = [p["embedding"] for p in pdfs]
+    client.insert_documents(pdf_collection, pdf_docs, pdf_embeddings)
+
+    print("[Milvus 2.5] Inserting Word docs...")
+    word_docs_list = [{"filename": w["filename"], "text": w["text"],
+                       "policy_id": w.get("id", "UNKNOWN"),
+                       "policy_type": w.get("type", "word")}
+                      for w in word_docs]
+    word_embeddings = [w["embedding"] for w in word_docs]
+    client.insert_documents(word_collection, word_docs_list, word_embeddings)
+
+    print("[Milvus 2.5] Inserting Images...")
+    image_docs = [{"filename": img["filename"], "text": img.get("description", ""),
+                   "policy_id": img.get("claim_id", "UNKNOWN"),
+                   "policy_type": img.get("damage_type", "unknown")}
+                  for img in images]
+    # Use image_embedding field (CLIP visual)
+    image_embeddings = [img["image_embedding"] for img in images]
+    client.insert_documents(image_collection, image_docs, image_embeddings)
+
+    # Load collections
+    print("[Milvus 2.5] Loading collections to memory...")
+    pdf_collection.load()
+    word_collection.load()
+    image_collection.load()
+
+    print("✓ Milvus 2.5 setup complete\n")
+
+    return client, pdf_collection, word_collection, image_collection
+
+
+def setup_weaviate(pdfs, word_docs, images):
+    """Setup Weaviate with collections supporting hybrid search."""
+    client = weaviate.Client("http://localhost:8080")
+
+    print("\n[Weaviate] Creating collections with hybrid search support...")
+
+    # Create PDF collection
+    # Note: Weaviate automatically supports hybrid search on text properties
+    # No special schema configuration required
+    pdf_schema = {
+        "class": "Phase3FairPDFs",
+        "vectorizer": "none",
+        "properties": [
+            {"name": "filename", "dataType": ["text"]},
+            {"name": "text", "dataType": ["text"]},
+            {"name": "policy_id", "dataType": ["text"]},
+            {"name": "policy_type", "dataType": ["text"]}
         ]
+    }
 
-        claim_queries = [
-            "flood damage to commercial property",
-            "cyber attack data breach incident",
-            "professional negligence medical malpractice"
-        ]
+    # Delete if exists
+    try:
+        client.schema.delete_class("Phase3FairPDFs")
+    except:
+        pass
 
-        knowledge_queries = [
-            "underwriting guidelines for catastrophe risk assessment",
-            "regulatory compliance requirements for reinsurance",
-            "claims handling procedures for large losses"
-        ]
+    client.schema.create_class(pdf_schema)
 
-        # Run benchmarks
-        print("\n--- Policy Search Performance ---")
-        milvus_policy_times = self._run_search_benchmark(
-            self.milvus_client.search_policies,
-            policy_queries,
-            "Milvus"
-        )
-
-        weaviate_policy_times = self._run_search_benchmark(
-            self.weaviate_client.search_policies,
-            policy_queries,
-            "Weaviate"
-        )
-
-        print("\n--- Claims Search Performance ---")
-        milvus_claim_times = self._run_search_benchmark(
-            self.milvus_client.search_claims,
-            claim_queries,
-            "Milvus"
-        )
-
-        weaviate_claim_times = self._run_search_benchmark(
-            self.weaviate_client.search_claims,
-            claim_queries,
-            "Weaviate"
-        )
-
-        print("\n--- Knowledge Base Search Performance ---")
-        milvus_kb_times = self._run_search_benchmark(
-            self.milvus_client.search_knowledge,
-            knowledge_queries,
-            "Milvus"
-        )
-
-        weaviate_kb_times = self._run_search_benchmark(
-            self.weaviate_client.search_knowledge,
-            knowledge_queries,
-            "Weaviate"
-        )
-
-        # Store results
-        self.results["milvus"]["query_performance"] = {
-            "policy_avg": statistics.mean(milvus_policy_times),
-            "claim_avg": statistics.mean(milvus_claim_times),
-            "knowledge_avg": statistics.mean(milvus_kb_times),
-            "overall_avg": statistics.mean(milvus_policy_times + milvus_claim_times + milvus_kb_times)
-        }
-
-        self.results["weaviate"]["query_performance"] = {
-            "policy_avg": statistics.mean(weaviate_policy_times),
-            "claim_avg": statistics.mean(weaviate_claim_times),
-            "knowledge_avg": statistics.mean(weaviate_kb_times),
-            "overall_avg": statistics.mean(weaviate_policy_times + weaviate_claim_times + weaviate_kb_times)
-        }
-
-    def _run_search_benchmark(self, search_func: Callable, queries: List[str], system: str) -> List[float]:
-        """Run search benchmark for a specific function."""
-        times = []
-
-        for query in queries:
-            result = search_func(query, limit=10)
-            times.append(result["search_time"])
-            print(f"  {system} - '{query[:50]}...': {result['search_time']:.4f}s")
-
-        avg_time = statistics.mean(times)
-        print(f"  {system} average: {avg_time:.4f}s")
-
-        return times
-
-    def benchmark_filtered_search(self):
-        """Benchmark filtered search capabilities."""
-        print("\n" + "="*60)
-        print("FILTERED SEARCH BENCHMARK")
-        print("="*60)
-
-        # Milvus filtered search (using expression filters)
-        print("\n--- Milvus Filtered Search ---")
-        start = time.time()
-        result = self.milvus_client.search_policies(
-            "catastrophe coverage",
-            limit=10,
-            filters='limit > 5000000'  # Policies with limit > $5M
-        )
-        milvus_time = time.time() - start
-        print(f"  Search with filter (limit > $5M): {milvus_time:.4f}s")
-        print(f"  Results found: {len(result['results'])}")
-
-        # Weaviate filtered search
-        print("\n--- Weaviate Filtered Search ---")
-        start = time.time()
-        result = self.weaviate_client.search_policies(
-            "catastrophe coverage",
-            limit=10,
-            filters={"field": "limit", "operator": "greater_than", "value": 5000000}
-        )
-        weaviate_time = time.time() - start
-        print(f"  Search with filter (limit > $5M): {weaviate_time:.4f}s")
-        print(f"  Results found: {len(result['results'])}")
-
-        self.results["milvus"]["filtered_search_time"] = milvus_time
-        self.results["weaviate"]["filtered_search_time"] = weaviate_time
-
-    def benchmark_hybrid_search(self):
-        """Benchmark hybrid search (vector + keyword) - Weaviate feature."""
-        print("\n" + "="*60)
-        print("HYBRID SEARCH BENCHMARK (Weaviate Feature)")
-        print("="*60)
-
-        queries = [
-            "regulatory compliance",
-            "underwriting guidelines",
-            "claims procedures"
-        ]
-
-        print("\n--- Weaviate Hybrid Search ---")
-        hybrid_times = []
-
-        for query in queries:
-            result = self.weaviate_client.hybrid_search_knowledge(query, limit=10, alpha=0.5)
-            hybrid_times.append(result["search_time"])
-            print(f"  '{query}': {result['search_time']:.4f}s")
-
-        avg_time = statistics.mean(hybrid_times)
-        print(f"  Average: {avg_time:.4f}s")
-
-        self.results["weaviate"]["hybrid_search_avg"] = avg_time
-        self.results["milvus"]["hybrid_search_support"] = False
-        self.results["weaviate"]["hybrid_search_support"] = True
-
-        print("\n  Note: Milvus does not have built-in hybrid search.")
-        print("        Would require custom implementation combining vector + BM25.")
-
-    def benchmark_resource_usage(self):
-        """Benchmark memory and CPU usage."""
-        print("\n" + "="*60)
-        print("RESOURCE USAGE")
-        print("="*60)
-
-        # Get current process memory
-        process = psutil.Process()
-        memory_info = process.memory_info()
-
-        print(f"\nCurrent process memory: {memory_info.rss / 1024 / 1024:.2f} MB")
-
-        # Note: Would need separate monitoring for Docker containers
-        print("\n  Note: For accurate Docker container resource usage,")
-        print("        run: docker stats --no-stream")
-
-    def evaluate_features(self):
-        """Evaluate feature richness."""
-        print("\n" + "="*60)
-        print("FEATURE COMPARISON")
-        print("="*60)
-
-        features = {
-            "milvus": {
-                "vector_search": True,
-                "filtered_search": True,
-                "hybrid_search": False,
-                "multi_tenancy": True,
-                "collection_aliases": True,
-                "dynamic_schema": False,
-                "index_types": ["IVF_FLAT", "IVF_SQ8", "IVF_PQ", "HNSW", "ANNOY"],
-                "distance_metrics": ["L2", "IP", "COSINE"],
-                "partition_support": True,
-                "query_result_caching": True,
-                "bulk_insert": True,
-                "time_travel": True
-            },
-            "weaviate": {
-                "vector_search": True,
-                "filtered_search": True,
-                "hybrid_search": True,
-                "multi_tenancy": True,
-                "collection_aliases": False,
-                "dynamic_schema": True,
-                "index_types": ["HNSW"],
-                "distance_metrics": ["cosine", "dot", "l2-squared", "hamming", "manhattan"],
-                "partition_support": False,
-                "query_result_caching": False,
-                "bulk_insert": True,
-                "graphql_api": True,
-                "restful_api": True,
-                "module_system": True
+    # Insert PDFs
+    print("[Weaviate] Inserting PDFs...")
+    with client.batch as batch:
+        for pdf in pdfs:
+            properties = {
+                "filename": pdf["filename"],
+                "text": pdf["text"],
+                "policy_id": pdf.get("id", "UNKNOWN"),
+                "policy_type": pdf.get("type", "pdf")
             }
-        }
+            batch.add_data_object(properties, "Phase3FairPDFs", vector=pdf["embedding"])
 
-        self.results["milvus"]["features"] = features["milvus"]
-        self.results["weaviate"]["features"] = features["weaviate"]
+    # Create Word collection
+    word_schema = {
+        "class": "Phase3FairWordDocs",
+        "vectorizer": "none",
+        "properties": [
+            {"name": "filename", "dataType": ["text"]},
+            {"name": "text", "dataType": ["text"]},
+            {"name": "doc_id", "dataType": ["text"]},
+            {"name": "doc_type", "dataType": ["text"]}
+        ]
+    }
 
-        print("\nMilvus Features:")
-        for key, value in features["milvus"].items():
-            print(f"  - {key}: {value}")
+    try:
+        client.schema.delete_class("Phase3FairWordDocs")
+    except:
+        pass
 
-        print("\nWeaviate Features:")
-        for key, value in features["weaviate"].items():
-            print(f"  - {key}: {value}")
+    client.schema.create_class(word_schema)
 
-    def evaluate_ease_of_use(self):
-        """Evaluate developer experience and ease of use."""
-        print("\n" + "="*60)
-        print("EASE OF USE EVALUATION")
-        print("="*60)
-
-        ease_of_use = {
-            "milvus": {
-                "setup_complexity": "Medium - Requires etcd, MinIO, and Milvus services",
-                "api_intuitiveness": "Good - Python SDK is comprehensive",
-                "documentation": "Good - Extensive docs and examples",
-                "schema_definition": "Explicit schema required upfront",
-                "error_messages": "Generally clear",
-                "learning_curve": "Medium - Need to understand collections, partitions, indexes"
-            },
-            "weaviate": {
-                "setup_complexity": "Easy - Single container deployment",
-                "api_intuitiveness": "Excellent - Clean, intuitive Python client",
-                "documentation": "Excellent - Well-organized with many examples",
-                "schema_definition": "Flexible - Can be defined dynamically",
-                "error_messages": "Very clear and helpful",
-                "learning_curve": "Low - Quick to get started, intuitive concepts"
+    # Insert Word docs
+    print("[Weaviate] Inserting Word docs...")
+    with client.batch as batch:
+        for word in word_docs:
+            properties = {
+                "filename": word["filename"],
+                "text": word["text"],
+                "doc_id": word.get("id", "UNKNOWN"),
+                "doc_type": word.get("type", "word")
             }
-        }
+            batch.add_data_object(properties, "Phase3FairWordDocs", vector=word["embedding"])
 
-        self.results["milvus"]["ease_of_use"] = ease_of_use["milvus"]
-        self.results["weaviate"]["ease_of_use"] = ease_of_use["weaviate"]
+    # Create Image collection
+    image_schema = {
+        "class": "Phase3FairImages",
+        "vectorizer": "none",
+        "properties": [
+            {"name": "filename", "dataType": ["text"]},
+            {"name": "description", "dataType": ["text"]},
+            {"name": "claim_id", "dataType": ["text"]},
+            {"name": "damage_type", "dataType": ["text"]}
+        ]
+    }
 
-        print("\nMilvus:")
-        for key, value in ease_of_use["milvus"].items():
-            print(f"  - {key}: {value}")
+    try:
+        client.schema.delete_class("Phase3FairImages")
+    except:
+        pass
 
-        print("\nWeaviate:")
-        for key, value in ease_of_use["weaviate"].items():
-            print(f"  - {key}: {value}")
+    client.schema.create_class(image_schema)
 
-    def generate_report(self):
-        """Generate final comparison report."""
-        print("\n" + "="*60)
-        print("BENCHMARK SUMMARY")
-        print("="*60)
+    # Insert Images
+    print("[Weaviate] Inserting Images...")
+    with client.batch as batch:
+        for img in images:
+            properties = {
+                "filename": img["filename"],
+                "description": img.get("description", ""),
+                "claim_id": img.get("claim_id", "UNKNOWN"),
+                "damage_type": img.get("damage_type", "unknown")
+            }
+            batch.add_data_object(properties, "Phase3FairImages", vector=img["image_embedding"])
 
-        # Performance summary
-        print("\n1. QUERY PERFORMANCE")
-        print("-" * 40)
-        milvus_avg = self.results["milvus"]["query_performance"]["overall_avg"]
-        weaviate_avg = self.results["weaviate"]["query_performance"]["overall_avg"]
+    print("✓ Weaviate setup complete\n")
 
-        print(f"Milvus average query time:   {milvus_avg:.4f}s")
-        print(f"Weaviate average query time: {weaviate_avg:.4f}s")
+    return client
 
-        if milvus_avg < weaviate_avg:
-            diff = ((weaviate_avg - milvus_avg) / weaviate_avg) * 100
-            print(f"→ Milvus is {diff:.1f}% faster")
-        else:
-            diff = ((milvus_avg - weaviate_avg) / milvus_avg) * 100
-            print(f"→ Weaviate is {diff:.1f}% faster")
 
-        # Setup time
-        print("\n2. SETUP & INDEXING TIME")
-        print("-" * 40)
-        print(f"Milvus setup time:   {self.results['milvus']['setup_time']:.2f}s")
-        print(f"Weaviate setup time: {self.results['weaviate']['setup_time']:.2f}s")
+def benchmark_milvus_pdfs(client, collection, pdfs, num_queries=10):
+    """Benchmark Milvus 2.5 PDF search (dense, sparse, hybrid)."""
+    results = {
+        "dense": [],
+        "sparse": [],
+        "hybrid": []
+    }
 
-        # Features
-        print("\n3. FEATURE HIGHLIGHTS")
-        print("-" * 40)
-        print("Milvus:")
-        print("  ✓ Multiple index types (IVF_FLAT, HNSW, etc.)")
-        print("  ✓ Partition support for data organization")
-        print("  ✓ Time travel queries")
-        print("  ✗ No built-in hybrid search")
+    print(f"\n[Milvus 2.5] Benchmarking PDF search ({num_queries} queries)...")
 
-        print("\nWeaviate:")
-        print("  ✓ Built-in hybrid search (vector + keyword)")
-        print("  ✓ Dynamic schema support")
-        print("  ✓ GraphQL API")
-        print("  ✓ Modular architecture with plugins")
+    for i in range(num_queries):
+        query_vector = pdfs[i]["embedding"]
+        query_text = pdfs[i]["text"]
 
-        # Recommendations
-        print("\n4. RECOMMENDATIONS FOR REINSURANCE USE CASES")
-        print("-" * 40)
+        # Dense search
+        _, elapsed = client.dense_search(collection, query_vector, limit=5)
+        results["dense"].append(elapsed)
 
-        print("\nChoose Milvus if:")
-        print("  • You need maximum query performance")
-        print("  • You have large-scale data (billions of vectors)")
-        print("  • You want fine-grained control over indexing strategies")
-        print("  • You need partition-based data isolation (e.g., per client)")
-        print("  • You're comfortable with more complex setup")
+        # Sparse search
+        _, elapsed = client.sparse_search(collection, query_text, limit=5)
+        results["sparse"].append(elapsed)
 
-        print("\nChoose Weaviate if:")
-        print("  • You want hybrid search (semantic + keyword)")
-        print("  • You need quick setup and easy deployment")
-        print("  • You prefer intuitive APIs and excellent documentation")
-        print("  • You want to leverage pre-built modules (vectorizers, etc.)")
-        print("  • Developer experience is a priority")
+        # Hybrid search
+        _, elapsed = client.hybrid_search(collection, query_vector, query_text, limit=5)
+        results["hybrid"].append(elapsed)
 
-        print("\n" + "="*60)
+    return results
 
-        # Save results to file
-        results_dir = Path("results")
-        results_dir.mkdir(exist_ok=True)
 
-        with open(results_dir / "benchmark_results.json", "w") as f:
-            json.dump(self.results, f, indent=2)
+def benchmark_milvus_word(client, collection, word_docs, num_queries=10):
+    """Benchmark Milvus 2.5 Word doc search."""
+    results = {
+        "dense": [],
+        "sparse": [],
+        "hybrid": []
+    }
 
-        print(f"\n✓ Full results saved to: results/benchmark_results.json")
+    print(f"[Milvus 2.5] Benchmarking Word doc search ({num_queries} queries)...")
 
-    def cleanup(self):
-        """Cleanup connections."""
-        if self.milvus_client:
-            self.milvus_client.disconnect()
-        if self.weaviate_client:
-            self.weaviate_client.disconnect()
+    for i in range(num_queries):
+        query_vector = word_docs[i]["embedding"]
+        query_text = word_docs[i]["text"]
+
+        # Dense search
+        _, elapsed = client.dense_search(collection, query_vector, limit=5)
+        results["dense"].append(elapsed)
+
+        # Sparse search
+        _, elapsed = client.sparse_search(collection, query_text, limit=5)
+        results["sparse"].append(elapsed)
+
+        # Hybrid search
+        _, elapsed = client.hybrid_search(collection, query_vector, query_text, limit=5)
+        results["hybrid"].append(elapsed)
+
+    return results
+
+
+def benchmark_milvus_images(client, collection, images, num_queries=10):
+    """Benchmark Milvus 2.5 image search (dense only - images don't have meaningful text)."""
+    results = {"dense": []}
+
+    print(f"[Milvus 2.5] Benchmarking image search ({num_queries} queries)...")
+
+    for i in range(num_queries):
+        query_vector = images[i]["image_embedding"]
+
+        # Dense search only (images use CLIP visual embeddings)
+        _, elapsed = client.dense_search(collection, query_vector, limit=5)
+        results["dense"].append(elapsed)
+
+    return results
+
+
+def benchmark_weaviate_pdfs(client, pdfs, num_queries=10):
+    """Benchmark Weaviate PDF search (dense, keyword, hybrid)."""
+    results = {
+        "dense": [],
+        "keyword": [],  # Pure BM25 (alpha=0)
+        "hybrid": []    # Balanced hybrid (alpha=0.5)
+    }
+
+    print(f"\n[Weaviate] Benchmarking PDF search ({num_queries} queries)...")
+
+    for i in range(num_queries):
+        query_vector = pdfs[i]["embedding"]
+        query_text = pdfs[i]["text"][:200]  # Limit text length for keyword search
+
+        # Dense search (vector only)
+        start_time = time.time()
+        client.query.get("Phase3FairPDFs", ["filename", "policy_id", "policy_type"]) \
+            .with_near_vector({"vector": query_vector}) \
+            .with_limit(5) \
+            .do()
+        elapsed = (time.time() - start_time) * 1000
+        results["dense"].append(elapsed)
+
+        # Keyword search (BM25 only, alpha=0)
+        start_time = time.time()
+        client.query.get("Phase3FairPDFs", ["filename", "policy_id", "policy_type"]) \
+            .with_hybrid(query=query_text, alpha=0.0) \
+            .with_limit(5) \
+            .do()
+        elapsed = (time.time() - start_time) * 1000
+        results["keyword"].append(elapsed)
+
+        # Hybrid search (balanced, alpha=0.5)
+        start_time = time.time()
+        client.query.get("Phase3FairPDFs", ["filename", "policy_id", "policy_type"]) \
+            .with_hybrid(query=query_text, alpha=0.5, vector=query_vector) \
+            .with_limit(5) \
+            .do()
+        elapsed = (time.time() - start_time) * 1000
+        results["hybrid"].append(elapsed)
+
+    return results
+
+
+def benchmark_weaviate_word(client, word_docs, num_queries=10):
+    """Benchmark Weaviate Word doc search (dense, keyword, hybrid)."""
+    results = {
+        "dense": [],
+        "keyword": [],
+        "hybrid": []
+    }
+
+    print(f"[Weaviate] Benchmarking Word doc search ({num_queries} queries)...")
+
+    for i in range(num_queries):
+        query_vector = word_docs[i]["embedding"]
+        query_text = word_docs[i]["text"][:200]
+
+        # Dense search
+        start_time = time.time()
+        client.query.get("Phase3FairWordDocs", ["filename", "doc_id", "doc_type"]) \
+            .with_near_vector({"vector": query_vector}) \
+            .with_limit(5) \
+            .do()
+        elapsed = (time.time() - start_time) * 1000
+        results["dense"].append(elapsed)
+
+        # Keyword search (alpha=0)
+        start_time = time.time()
+        client.query.get("Phase3FairWordDocs", ["filename", "doc_id", "doc_type"]) \
+            .with_hybrid(query=query_text, alpha=0.0) \
+            .with_limit(5) \
+            .do()
+        elapsed = (time.time() - start_time) * 1000
+        results["keyword"].append(elapsed)
+
+        # Hybrid search (alpha=0.5)
+        start_time = time.time()
+        client.query.get("Phase3FairWordDocs", ["filename", "doc_id", "doc_type"]) \
+            .with_hybrid(query=query_text, alpha=0.5, vector=query_vector) \
+            .with_limit(5) \
+            .do()
+        elapsed = (time.time() - start_time) * 1000
+        results["hybrid"].append(elapsed)
+
+    return results
+
+
+def benchmark_weaviate_images(client, images, num_queries=10):
+    """Benchmark Weaviate image search (dense only - no text for keyword search)."""
+    results = {"dense": []}
+
+    print(f"[Weaviate] Benchmarking image search ({num_queries} queries)...")
+
+    for i in range(num_queries):
+        query_vector = images[i]["image_embedding"]
+
+        # Dense search only (images don't have meaningful text for BM25)
+        start_time = time.time()
+        client.query.get("Phase3FairImages", ["filename", "claim_id", "damage_type"]) \
+            .with_near_vector({"vector": query_vector}) \
+            .with_limit(5) \
+            .do()
+        elapsed = (time.time() - start_time) * 1000
+        results["dense"].append(elapsed)
+
+    return results
+
+
+def calculate_stats(times):
+    """Calculate statistics from timing results."""
+    return {
+        "avg": statistics.mean(times),
+        "median": statistics.median(times),
+        "min": min(times),
+        "max": max(times),
+        "p95": np.percentile(times, 95),
+        "p99": np.percentile(times, 99)
+    }
 
 
 def main():
-    """Run full benchmark suite."""
-    runner = BenchmarkRunner()
+    print("="*70)
+    print("Phase 3 FAIR Benchmarks: Milvus 2.5 vs Weaviate")
+    print("Testing same features on both systems: Dense, Sparse/Keyword, Hybrid")
+    print("="*70)
 
-    try:
-        # Setup
-        runner.setup(data_size=1000)
+    # Load data
+    print("\nLoading processed data...")
+    pdfs, word_docs, images = load_processed_data()
+    print(f"✓ Loaded {len(pdfs)} PDFs, {len(word_docs)} Word docs, {len(images)} images")
 
-        # Run benchmarks
-        runner.benchmark_query_performance()
-        runner.benchmark_filtered_search()
-        runner.benchmark_hybrid_search()
-        runner.benchmark_resource_usage()
+    # Setup databases
+    milvus_client, pdf_coll, word_coll, image_coll = setup_milvus_25(pdfs, word_docs, images)
+    weaviate_client = setup_weaviate(pdfs, word_docs, images)
 
-        # Evaluate
-        runner.evaluate_features()
-        runner.evaluate_ease_of_use()
+    # Run benchmarks
+    print("\n" + "="*70)
+    print("RUNNING FAIR BENCHMARKS")
+    print("="*70)
 
-        # Generate report
-        runner.generate_report()
+    num_queries = 10
 
-    except Exception as e:
-        print(f"\n❌ Error during benchmark: {e}")
-        import traceback
-        traceback.print_exc()
+    # Milvus 2.5 benchmarks
+    milvus_pdf_results = benchmark_milvus_pdfs(milvus_client, pdf_coll, pdfs, num_queries)
+    milvus_word_results = benchmark_milvus_word(milvus_client, word_coll, word_docs, num_queries)
+    milvus_image_results = benchmark_milvus_images(milvus_client, image_coll, images, num_queries)
 
-    finally:
-        runner.cleanup()
+    # Weaviate benchmarks (now with hybrid search!)
+    weaviate_pdf_results = benchmark_weaviate_pdfs(weaviate_client, pdfs, num_queries)
+    weaviate_word_results = benchmark_weaviate_word(weaviate_client, word_docs, num_queries)
+    weaviate_image_results = benchmark_weaviate_images(weaviate_client, images, num_queries)
+
+    # Calculate statistics
+    print("\n" + "="*70)
+    print("RESULTS")
+    print("="*70)
+
+    results = {
+        "metadata": {
+            "description": "Fair comparison - same features tested on both systems",
+            "num_queries": num_queries,
+            "dataset_size": {
+                "pdfs": len(pdfs),
+                "word_docs": len(word_docs),
+                "images": len(images)
+            }
+        },
+        "milvus_25": {
+            "pdf_dense": calculate_stats(milvus_pdf_results["dense"]),
+            "pdf_sparse": calculate_stats(milvus_pdf_results["sparse"]),
+            "pdf_hybrid": calculate_stats(milvus_pdf_results["hybrid"]),
+            "word_dense": calculate_stats(milvus_word_results["dense"]),
+            "word_sparse": calculate_stats(milvus_word_results["sparse"]),
+            "word_hybrid": calculate_stats(milvus_word_results["hybrid"]),
+            "image_dense": calculate_stats(milvus_image_results["dense"])
+        },
+        "weaviate": {
+            "pdf_dense": calculate_stats(weaviate_pdf_results["dense"]),
+            "pdf_keyword": calculate_stats(weaviate_pdf_results["keyword"]),
+            "pdf_hybrid": calculate_stats(weaviate_pdf_results["hybrid"]),
+            "word_dense": calculate_stats(weaviate_word_results["dense"]),
+            "word_keyword": calculate_stats(weaviate_word_results["keyword"]),
+            "word_hybrid": calculate_stats(weaviate_word_results["hybrid"]),
+            "image_dense": calculate_stats(weaviate_image_results["dense"])
+        }
+    }
+
+    # Print results
+    print("\nMilvus 2.5 Results:")
+    print(f"  PDF Dense:   {results['milvus_25']['pdf_dense']['avg']:.2f}ms avg")
+    print(f"  PDF Sparse:  {results['milvus_25']['pdf_sparse']['avg']:.2f}ms avg")
+    print(f"  PDF Hybrid:  {results['milvus_25']['pdf_hybrid']['avg']:.2f}ms avg")
+    print(f"  Word Dense:  {results['milvus_25']['word_dense']['avg']:.2f}ms avg")
+    print(f"  Word Sparse: {results['milvus_25']['word_sparse']['avg']:.2f}ms avg")
+    print(f"  Word Hybrid: {results['milvus_25']['word_hybrid']['avg']:.2f}ms avg")
+    print(f"  Image Dense: {results['milvus_25']['image_dense']['avg']:.2f}ms avg")
+
+    print("\nWeaviate Results:")
+    print(f"  PDF Dense:   {results['weaviate']['pdf_dense']['avg']:.2f}ms avg")
+    print(f"  PDF Keyword: {results['weaviate']['pdf_keyword']['avg']:.2f}ms avg")
+    print(f"  PDF Hybrid:  {results['weaviate']['pdf_hybrid']['avg']:.2f}ms avg")
+    print(f"  Word Dense:  {results['weaviate']['word_dense']['avg']:.2f}ms avg")
+    print(f"  Word Keyword:{results['weaviate']['word_keyword']['avg']:.2f}ms avg")
+    print(f"  Word Hybrid: {results['weaviate']['word_hybrid']['avg']:.2f}ms avg")
+    print(f"  Image Dense: {results['weaviate']['image_dense']['avg']:.2f}ms avg")
+
+    # Save results
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_file = Path(os.path.join(script_dir, "..", "results", "phase3_fair_benchmark_results.json"))
+    output_file.parent.mkdir(exist_ok=True)
+
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+    print(f"\n✓ Results saved to {output_file}")
+
+    # Cleanup
+    print("\nCleaning up...")
+    pdf_coll.release()
+    word_coll.release()
+    image_coll.release()
+
+    from pymilvus import utility
+    utility.drop_collection("phase3_fair_pdfs")
+    utility.drop_collection("phase3_fair_word")
+    utility.drop_collection("phase3_fair_images")
+
+    weaviate_client.schema.delete_class("Phase3FairPDFs")
+    weaviate_client.schema.delete_class("Phase3FairWordDocs")
+    weaviate_client.schema.delete_class("Phase3FairImages")
+
+    milvus_client.disconnect()
+
+    print("✓ Cleanup complete\n")
+    print("="*70)
+    print("✓ Phase 3 FAIR Benchmarks Complete!")
+    print("="*70)
 
 
 if __name__ == "__main__":

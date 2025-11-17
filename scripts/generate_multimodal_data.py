@@ -349,16 +349,24 @@ def generate_all_pdfs(count=100):
     charts_dir = data_dir / "pdfs" / "charts"
     charts_dir.mkdir(exist_ok=True)
 
-    # Generate PDFs
+    # Generate PDFs (cycle through Phase 1 data if count > available policies)
     generated = 0
-    for i, policy in enumerate(policies[:count]):
+    for i in range(count):
         try:
+            # Use modulo to cycle through available policies
+            policy = policies[i % len(policies)]
+
+            # Create unique policy ID for each document
+            if i >= len(policies):
+                policy = policy.copy()
+                policy['id'] = f"{policy['id']}_v{i // len(policies) + 1}"
+
             pdf_path = generate_policy_pdf(policy, pdfs_dir, charts_dir)
             generated += 1
             if (i + 1) % 10 == 0:
                 print(f"✓ Generated {i + 1}/{count} PDFs")
         except Exception as e:
-            print(f"✗ Error generating PDF for {policy['id']}: {str(e)}")
+            print(f"✗ Error generating PDF {i}: {str(e)}")
 
     print(f"\n✓ Successfully generated {generated} PDF documents")
     print(f"  Location: {pdfs_dir}")
@@ -483,12 +491,17 @@ def generate_all_images(count=200):
     images_dir = data_dir / "images"
     images_dir.mkdir(exist_ok=True)
 
-    # Damage type distribution
+    # Damage type distribution (proportional to requested count)
+    damage_type_ratios = {
+        'hurricane': 0.40,   # 40%
+        'flood': 0.30,       # 30%
+        'fire': 0.20,        # 20%
+        'structural': 0.10,  # 10%
+    }
+
     damage_types = {
-        'hurricane': 80,   # 40%
-        'flood': 60,       # 30%
-        'fire': 40,        # 20%
-        'structural': 20,  # 10%
+        dtype: int(count * ratio)
+        for dtype, ratio in damage_type_ratios.items()
     }
 
     # Generate images
@@ -510,8 +523,8 @@ def generate_all_images(count=200):
                 # Generate image
                 image_path = generate_damage_image(damage_type, severity, image_id, type_dir)
 
-                # Link to a random claim
-                linked_claim = random.choice(claims[:min(len(claims), 500)])
+                # Link to a random claim (cycle through claims if needed)
+                linked_claim = claims[generated % len(claims)]
 
                 # Create metadata
                 metadata = {
@@ -775,11 +788,17 @@ def generate_all_word_docs(count=50):
     # Generate documents (split between claims reports and underwriting guidelines)
     generated = 0
 
-    # Generate claims reports (30 documents)
+    # Generate claims reports (60% of documents)
     claims_count = int(count * 0.6)
     for i in range(claims_count):
         try:
-            claim = claims[i % len(claims)]
+            # Cycle through claims if count exceeds available
+            claim = claims[i % len(claims)].copy()
+
+            # Make unique ID if cycling
+            if i >= len(claims):
+                claim['id'] = f"{claim['id']}_v{i // len(claims) + 1}"
+
             doc_path = generate_claims_report_word(claim, word_dir)
             generated += 1
 
@@ -789,11 +808,17 @@ def generate_all_word_docs(count=50):
         except Exception as e:
             print(f"✗ Error generating claims report {i}: {str(e)}")
 
-    # Generate underwriting guidelines (20 documents)
+    # Generate underwriting guidelines (40% of documents)
     guidelines_count = count - claims_count
     for i in range(guidelines_count):
         try:
-            policy = policies[i % len(policies)]
+            # Cycle through policies if count exceeds available
+            policy = policies[i % len(policies)].copy()
+
+            # Make unique ID if cycling
+            if i >= len(policies):
+                policy['id'] = f"{policy['id']}_v{i // len(policies) + 1}"
+
             doc_path = generate_underwriting_guideline_word(policy, word_dir)
             generated += 1
 

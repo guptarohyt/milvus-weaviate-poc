@@ -125,7 +125,7 @@ class DatabaseBrowser:
             output_fields = [f.name for f in schema.fields if not f.name.endswith('embedding')]
 
             results = collection.query(
-                expr="id != ''",
+                expr="id >= 0",  # Works for both int and string IDs
                 output_fields=output_fields[:10],  # Limit fields
                 limit=limit
             )
