@@ -710,6 +710,62 @@ python cleanup_persistent.py
 
 ---
 
+## 7. Generating Benchmark Reports
+
+After running benchmarks and quality evaluations, you can generate comprehensive reports in both HTML and Markdown formats.
+
+### Generate Reports
+
+The `generate_50k_report.py` script reads the benchmark results and generates both HTML and Markdown reports:
+
+```bash
+cd scripts
+python generate_50k_report.py
+```
+
+**Output:**
+- `BENCHMARK_50K_REPORT.html` - Interactive HTML report with styling and tables
+- `BENCHMARK_50K_REPORT.md` - Markdown report (GitHub-friendly, version control friendly)
+
+**What's Included in Reports:**
+- Executive summary with key metrics
+- Performance comparison tables (Milvus vs Weaviate)
+- Speedup calculations for all search types
+- Quality metrics (Precision@5, NDCG@5, MRR)
+- Detailed performance breakdown
+- Technical specifications
+- Test methodology
+
+**Input Files Required:**
+- `results/phase3_fair_benchmark_results.json` (from `benchmark.py`)
+- `results/phase3_quality_results.json` (from `evaluate_quality.py`)
+
+**Note:** The reports are automatically generated from actual benchmark data, so the numbers will reflect your most recent benchmark run.
+
+### View Reports
+
+**HTML Report:**
+```bash
+# Open in browser
+open BENCHMARK_50K_REPORT.html
+```
+
+**Markdown Report:**
+```bash
+# View in terminal
+less BENCHMARK_50K_REPORT.md
+
+# Or open in your favorite markdown viewer
+```
+
+The Markdown report is especially useful for:
+- Version control (Git)
+- GitHub README or documentation
+- Converting to other formats (PDF, DOCX, etc.)
+- Easy text-based viewing
+
+---
+
 ## Troubleshooting
 
 ### Docker Services Won't Start

@@ -118,7 +118,7 @@
             <h1>50,000 Document Benchmark Results</h1>
             <div class="subtitle">Milvus 2.5 vs Weaviate - Fair Comparison</div>
             <div class="subtitle" style="font-size: 0.9em; margin-top: 10px;">
-                50,000 multi-modal documents | November 17, 2025
+                50,000 multi-modal documents | November 18, 2025
             </div>
         </div>
 
@@ -147,12 +147,12 @@
                 </div>
                 <div class="card">
                     <h3>Milvus Best Speed</h3>
-                    <div class="value">1.04ms</div>
+                    <div class="value">1.05ms</div>
                     <div class="label">Image dense search</div>
                 </div>
                 <div class="card">
                     <h3>Max Speedup</h3>
-                    <div class="value">7.3x</div>
+                    <div class="value">5.5x</div>
                     <div class="label">Milvus faster (keyword)</div>
                 </div>
             </div>
@@ -172,21 +172,21 @@
                 <tbody>
                     <tr class="winner">
                         <td>Dense (Semantic)</td>
-                        <td>1.22 ms</td>
-                        <td>3.71 ms</td>
-                        <td class="speedup">3.0x faster</td>
+                        <td>1.87 ms</td>
+                        <td>4.74 ms</td>
+                        <td class="speedup">2.5x faster</td>
                     </tr>
                     <tr class="winner">
                         <td>Sparse/Keyword (BM25)</td>
-                        <td>2.76 ms</td>
-                        <td>20.15 ms</td>
-                        <td class="speedup">7.3x faster</td>
+                        <td>3.46 ms</td>
+                        <td>19.21 ms</td>
+                        <td class="speedup">5.5x faster</td>
                     </tr>
                     <tr class="winner">
                         <td>Hybrid</td>
-                        <td>3.94 ms</td>
-                        <td>23.68 ms</td>
-                        <td class="speedup">6.0x faster</td>
+                        <td>5.68 ms</td>
+                        <td>27.19 ms</td>
+                        <td class="speedup">4.8x faster</td>
                     </tr>
                 </tbody>
             </table>
@@ -204,21 +204,21 @@
                 <tbody>
                     <tr class="winner">
                         <td>Dense (Semantic)</td>
-                        <td>1.15 ms</td>
-                        <td>4.06 ms</td>
-                        <td class="speedup">3.5x faster</td>
+                        <td>1.43 ms</td>
+                        <td>5.16 ms</td>
+                        <td class="speedup">3.6x faster</td>
                     </tr>
                     <tr class="winner">
                         <td>Sparse/Keyword (BM25)</td>
-                        <td>1.43 ms</td>
-                        <td>11.71 ms</td>
-                        <td class="speedup">8.2x faster</td>
+                        <td>2.47 ms</td>
+                        <td>11.75 ms</td>
+                        <td class="speedup">4.8x faster</td>
                     </tr>
                     <tr class="winner">
                         <td>Hybrid</td>
-                        <td>2.53 ms</td>
-                        <td>10.67 ms</td>
-                        <td class="speedup">4.2x faster</td>
+                        <td>3.68 ms</td>
+                        <td>13.81 ms</td>
+                        <td class="speedup">3.8x faster</td>
                     </tr>
                 </tbody>
             </table>
@@ -236,9 +236,9 @@
                 <tbody>
                     <tr class="winner">
                         <td>Dense (CLIP embeddings)</td>
-                        <td>1.04 ms</td>
-                        <td>2.90 ms</td>
-                        <td class="speedup">2.8x faster</td>
+                        <td>1.05 ms</td>
+                        <td>3.44 ms</td>
+                        <td class="speedup">3.3x faster</td>
                     </tr>
                 </tbody>
             </table>
@@ -279,7 +279,7 @@
             <h2>Key Findings</h2>
             <ul style="line-height: 2; margin: 20px 0 20px 40px;">
                 <li><strong>Performance Winner: Milvus 2.5</strong> - Faster across ALL search types (2-7x speedup)</li>
-                <li><strong>Biggest Gap: Keyword Search</strong> - Milvus 7.3x faster than Weaviate</li>
+                <li><strong>Biggest Gap: Keyword Search</strong> - Milvus 5.5x faster than Weaviate</li>
                 <li><strong>Quality Tie:</strong> Both systems deliver perfect search quality</li>
                 <li><strong>Scale Validation:</strong> Successfully tested at 50K documents (5x larger than initial tests)</li>
                 <li><strong>Consistent Performance:</strong> Milvus maintains speed advantage across all document types</li>
