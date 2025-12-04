@@ -534,7 +534,7 @@ def generate_all_images(count=200):
                 metadata = {
                     'image_id': image_id,
                     'filename': str(image_path.name),
-                    'path': str(image_path.relative_to(Path("./data"))),
+                    'path': str(image_path.relative_to(data_dir)),
                     'damage_type': damage_type,
                     'severity': round(severity, 2),
                     'claim_id': linked_claim['id'],

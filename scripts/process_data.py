@@ -256,7 +256,7 @@ class MultiModalProcessor:
 
         for meta in tqdm(metadata, desc="Processing images"):
             # Get base directory from environment variable
-            base_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")).parent
+            base_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
             image_path = base_dir / meta['path']
 
             if not image_path.exists():
