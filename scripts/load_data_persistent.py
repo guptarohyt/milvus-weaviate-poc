@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Load 50K data into databases WITHOUT cleanup - so you can verify it's there.
+Load processed data into databases WITHOUT cleanup - so you can verify it's there.
 """
 
 import json
@@ -28,7 +28,7 @@ def load_processed_data():
 
 def main():
     print("=" * 70)
-    print("LOADING 50K DOCUMENTS INTO DATABASES")
+    print("LOADING PROCESSED DOCUMENTS INTO DATABASES")
     print("Data will REMAIN loaded so you can verify it")
     print("=" * 70)
 
@@ -187,8 +187,9 @@ def main():
             batch.add_data_object(properties, "PersistentImages", vector=img["image_embedding"])
     print(f"✓ Inserted {len(images):,} Images")
 
+    total_docs = len(pdfs) + len(word_docs) + len(images)
     print("\n" + "=" * 70)
-    print("✓ ALL 50K DOCUMENTS LOADED INTO BOTH DATABASES!")
+    print(f"✓ ALL {total_docs:,} DOCUMENTS LOADED INTO BOTH DATABASES!")
     print("=" * 70)
     print("\nYou can now verify the data in both databases:")
     print("\nMilvus verification:")
