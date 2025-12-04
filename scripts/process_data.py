@@ -338,7 +338,7 @@ def main():
 
     # Save processed data
     output_dir = data_dir / "processed"
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     for data_type, data in results.items():
         output_file = output_dir / f"{data_type}_processed.json"

@@ -351,7 +351,7 @@ def generate_all_pdfs(count=100):
     data_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
     pdfs_dir = data_dir / "pdfs"
     charts_dir = data_dir / "pdfs" / "charts"
-    charts_dir.mkdir(exist_ok=True)
+    charts_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate PDFs (cycle through Phase 1 data if count > available policies)
     generated = 0
@@ -493,7 +493,7 @@ def generate_all_images(count=200):
     # Setup directories
     data_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
     images_dir = data_dir / "images"
-    images_dir.mkdir(exist_ok=True)
+    images_dir.mkdir(parents=True, exist_ok=True)
 
     # Damage type distribution (proportional to requested count)
     damage_type_ratios = {
@@ -787,7 +787,7 @@ def generate_all_word_docs(count=50):
     # Setup directories
     data_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
     word_dir = data_dir / "word"
-    word_dir.mkdir(exist_ok=True)
+    word_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate documents (split between claims reports and underwriting guidelines)
     generated = 0
