@@ -8,6 +8,10 @@ import os
 import random
 import argparse
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
@@ -344,7 +348,7 @@ def generate_all_pdfs(count=100):
         return
 
     # Setup directories
-    data_dir = Path("./data/multimodal")
+    data_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
     pdfs_dir = data_dir / "pdfs"
     charts_dir = data_dir / "pdfs" / "charts"
     charts_dir.mkdir(exist_ok=True)
@@ -487,7 +491,7 @@ def generate_all_images(count=200):
         return
 
     # Setup directories
-    data_dir = Path("./data/multimodal")
+    data_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
     images_dir = data_dir / "images"
     images_dir.mkdir(exist_ok=True)
 
@@ -781,7 +785,7 @@ def generate_all_word_docs(count=50):
         return
 
     # Setup directories
-    data_dir = Path("./data/multimodal")
+    data_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
     word_dir = data_dir / "word"
     word_dir.mkdir(exist_ok=True)
 

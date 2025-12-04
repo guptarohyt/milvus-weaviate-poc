@@ -16,6 +16,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any
 import statistics
+import argparse
 
 from milvus_25_hybrid_client import Milvus25HybridClient
 import weaviate
@@ -46,65 +47,85 @@ def load_processed_data():
     return pdfs, word_docs, images
 
 
-def setup_milvus_25(pdfs, word_docs, images):
+def setup_milvus_25(pdfs, word_docs, images, use_persistent=False):
     """Setup Milvus 2.5 with hybrid search collections."""
+    from pymilvus import Collection
+    
     client = Milvus25HybridClient(host="localhost", port="19530")
     client.connect()
 
-    print("\n[Milvus 2.5] Creating hybrid collections...")
+    if use_persistent:
+        print("\n[Milvus 2.5] Using existing persistent collections...")
+        pdf_collection = Collection("persistent_pdfs")
+        word_collection = Collection("persistent_word")
+        image_collection = Collection("persistent_images")
+        
+        # Fit BM25 encoder on the corpus (needed for sparse search)
+        print("[Milvus 2.5] Fitting BM25 encoder on corpus...")
+        all_texts = [p["text"] for p in pdfs] + [w["text"] for w in word_docs] + [img.get("description", "") for img in images]
+        client.bm25_encoder.fit(all_texts)
+        
+        print("✓ Connected to persistent collections\n")
+    else:
+        print("\n[Milvus 2.5] Creating hybrid collections...")
 
-    # Create collections for each data type
-    pdf_collection = client.create_hybrid_collection("phase3_fair_pdfs", dense_dim=384)
-    word_collection = client.create_hybrid_collection("phase3_fair_word", dense_dim=384)
-    image_collection = client.create_hybrid_collection("phase3_fair_images", dense_dim=512)
+        # Create collections for each data type
+        pdf_collection = client.create_hybrid_collection("phase3_fair_pdfs", dense_dim=384)
+        word_collection = client.create_hybrid_collection("phase3_fair_word", dense_dim=384)
+        image_collection = client.create_hybrid_collection("phase3_fair_images", dense_dim=512)
 
-    # Create indexes
-    print("[Milvus 2.5] Creating indexes...")
-    client.create_indexes(pdf_collection)
-    client.create_indexes(word_collection)
-    client.create_indexes(image_collection)
+        # Create indexes
+        print("[Milvus 2.5] Creating indexes...")
+        client.create_indexes(pdf_collection)
+        client.create_indexes(word_collection)
+        client.create_indexes(image_collection)
 
-    # Insert data
-    print("[Milvus 2.5] Inserting PDFs...")
-    pdf_docs = [{"filename": p["filename"], "text": p["text"],
-                 "policy_id": p.get("id", "UNKNOWN"),
-                 "policy_type": p.get("type", "pdf")}
-                for p in pdfs]
-    pdf_embeddings = [p["embedding"] for p in pdfs]
-    client.insert_documents(pdf_collection, pdf_docs, pdf_embeddings)
+        # Insert data
+        print("[Milvus 2.5] Inserting PDFs...")
+        pdf_docs = [{"filename": p["filename"], "text": p["text"],
+                     "policy_id": p.get("id", "UNKNOWN"),
+                     "policy_type": p.get("type", "pdf")}
+                    for p in pdfs]
+        pdf_embeddings = [p["embedding"] for p in pdfs]
+        client.insert_documents(pdf_collection, pdf_docs, pdf_embeddings)
 
-    print("[Milvus 2.5] Inserting Word docs...")
-    word_docs_list = [{"filename": w["filename"], "text": w["text"],
-                       "policy_id": w.get("id", "UNKNOWN"),
-                       "policy_type": w.get("type", "word")}
-                      for w in word_docs]
-    word_embeddings = [w["embedding"] for w in word_docs]
-    client.insert_documents(word_collection, word_docs_list, word_embeddings)
+        print("[Milvus 2.5] Inserting Word docs...")
+        word_docs_list = [{"filename": w["filename"], "text": w["text"],
+                           "policy_id": w.get("id", "UNKNOWN"),
+                           "policy_type": w.get("type", "word")}
+                          for w in word_docs]
+        word_embeddings = [w["embedding"] for w in word_docs]
+        client.insert_documents(word_collection, word_docs_list, word_embeddings)
 
-    print("[Milvus 2.5] Inserting Images...")
-    image_docs = [{"filename": img["filename"], "text": img.get("description", ""),
-                   "policy_id": img.get("claim_id", "UNKNOWN"),
-                   "policy_type": img.get("damage_type", "unknown")}
-                  for img in images]
-    # Use image_embedding field (CLIP visual)
-    image_embeddings = [img["image_embedding"] for img in images]
-    client.insert_documents(image_collection, image_docs, image_embeddings)
+        print("[Milvus 2.5] Inserting Images...")
+        image_docs = [{"filename": img["filename"], "text": img.get("description", ""),
+                       "policy_id": img.get("claim_id", "UNKNOWN"),
+                       "policy_type": img.get("damage_type", "unknown")}
+                      for img in images]
+        # Use image_embedding field (CLIP visual)
+        image_embeddings = [img["image_embedding"] for img in images]
+        client.insert_documents(image_collection, image_docs, image_embeddings)
 
-    # Load collections
-    print("[Milvus 2.5] Loading collections to memory...")
-    pdf_collection.load()
-    word_collection.load()
-    image_collection.load()
+        # Load collections
+        print("[Milvus 2.5] Loading collections to memory...")
+        pdf_collection.load()
+        word_collection.load()
+        image_collection.load()
 
-    print("✓ Milvus 2.5 setup complete\n")
+        print("✓ Milvus 2.5 setup complete\n")
 
     return client, pdf_collection, word_collection, image_collection
 
 
-def setup_weaviate(pdfs, word_docs, images):
+def setup_weaviate(pdfs, word_docs, images, use_persistent=False):
     """Setup Weaviate with collections supporting hybrid search."""
     client = weaviate.Client("http://localhost:8080")
 
+    if use_persistent:
+        print("\n[Weaviate] Using existing persistent collections...")
+        print("✓ Connected to persistent collections\n")
+        return client
+    
     print("\n[Weaviate] Creating collections with hybrid search support...")
 
     # Create PDF collection
@@ -282,7 +303,7 @@ def benchmark_milvus_images(client, collection, images, num_queries=10):
     return results
 
 
-def benchmark_weaviate_pdfs(client, pdfs, num_queries=10):
+def benchmark_weaviate_pdfs(client, pdfs, num_queries=10, collection_name="Phase3FairPDFs"):
     """Benchmark Weaviate PDF search (dense, keyword, hybrid)."""
     results = {
         "dense": [],
@@ -298,7 +319,7 @@ def benchmark_weaviate_pdfs(client, pdfs, num_queries=10):
 
         # Dense search (vector only)
         start_time = time.time()
-        client.query.get("Phase3FairPDFs", ["filename", "policy_id", "policy_type"]) \
+        client.query.get(collection_name, ["filename", "policy_id", "policy_type"]) \
             .with_near_vector({"vector": query_vector}) \
             .with_limit(5) \
             .do()
@@ -307,7 +328,7 @@ def benchmark_weaviate_pdfs(client, pdfs, num_queries=10):
 
         # Keyword search (BM25 only, alpha=0)
         start_time = time.time()
-        client.query.get("Phase3FairPDFs", ["filename", "policy_id", "policy_type"]) \
+        client.query.get(collection_name, ["filename", "policy_id", "policy_type"]) \
             .with_hybrid(query=query_text, alpha=0.0) \
             .with_limit(5) \
             .do()
@@ -316,7 +337,7 @@ def benchmark_weaviate_pdfs(client, pdfs, num_queries=10):
 
         # Hybrid search (balanced, alpha=0.5)
         start_time = time.time()
-        client.query.get("Phase3FairPDFs", ["filename", "policy_id", "policy_type"]) \
+        client.query.get(collection_name, ["filename", "policy_id", "policy_type"]) \
             .with_hybrid(query=query_text, alpha=0.5, vector=query_vector) \
             .with_limit(5) \
             .do()
@@ -326,7 +347,7 @@ def benchmark_weaviate_pdfs(client, pdfs, num_queries=10):
     return results
 
 
-def benchmark_weaviate_word(client, word_docs, num_queries=10):
+def benchmark_weaviate_word(client, word_docs, num_queries=10, collection_name="Phase3FairWordDocs"):
     """Benchmark Weaviate Word doc search (dense, keyword, hybrid)."""
     results = {
         "dense": [],
@@ -342,7 +363,7 @@ def benchmark_weaviate_word(client, word_docs, num_queries=10):
 
         # Dense search
         start_time = time.time()
-        client.query.get("Phase3FairWordDocs", ["filename", "doc_id", "doc_type"]) \
+        client.query.get(collection_name, ["filename", "doc_id", "doc_type"]) \
             .with_near_vector({"vector": query_vector}) \
             .with_limit(5) \
             .do()
@@ -351,7 +372,7 @@ def benchmark_weaviate_word(client, word_docs, num_queries=10):
 
         # Keyword search (alpha=0)
         start_time = time.time()
-        client.query.get("Phase3FairWordDocs", ["filename", "doc_id", "doc_type"]) \
+        client.query.get(collection_name, ["filename", "doc_id", "doc_type"]) \
             .with_hybrid(query=query_text, alpha=0.0) \
             .with_limit(5) \
             .do()
@@ -360,7 +381,7 @@ def benchmark_weaviate_word(client, word_docs, num_queries=10):
 
         # Hybrid search (alpha=0.5)
         start_time = time.time()
-        client.query.get("Phase3FairWordDocs", ["filename", "doc_id", "doc_type"]) \
+        client.query.get(collection_name, ["filename", "doc_id", "doc_type"]) \
             .with_hybrid(query=query_text, alpha=0.5, vector=query_vector) \
             .with_limit(5) \
             .do()
@@ -370,7 +391,7 @@ def benchmark_weaviate_word(client, word_docs, num_queries=10):
     return results
 
 
-def benchmark_weaviate_images(client, images, num_queries=10):
+def benchmark_weaviate_images(client, images, num_queries=10, collection_name="Phase3FairImages"):
     """Benchmark Weaviate image search (dense only - no text for keyword search)."""
     results = {"dense": []}
 
@@ -381,7 +402,7 @@ def benchmark_weaviate_images(client, images, num_queries=10):
 
         # Dense search only (images don't have meaningful text for BM25)
         start_time = time.time()
-        client.query.get("Phase3FairImages", ["filename", "claim_id", "damage_type"]) \
+        client.query.get(collection_name, ["filename", "claim_id", "damage_type"]) \
             .with_near_vector({"vector": query_vector}) \
             .with_limit(5) \
             .do()
@@ -404,19 +425,45 @@ def calculate_stats(times):
 
 
 def main():
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        description='Benchmark Milvus 2.5 vs Weaviate',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Default: Create temporary collections, benchmark, cleanup
+  %(prog)s
+  
+  # Use existing persistent collections (no data loading or cleanup)
+  %(prog)s --use-persistent
+"""
+    )
+    parser.add_argument('--use-persistent', action='store_true',
+                       help='Use existing persistent_* collections instead of creating new ones (skips data loading and cleanup)')
+    args = parser.parse_args()
+    
     print("="*70)
     print("Phase 3 FAIR Benchmarks: Milvus 2.5 vs Weaviate")
     print("Testing same features on both systems: Dense, Sparse/Keyword, Hybrid")
+    if args.use_persistent:
+        print("Mode: Using existing persistent collections")
+    else:
+        print("Mode: Creating temporary collections")
     print("="*70)
 
-    # Load data
-    print("\nLoading processed data...")
-    pdfs, word_docs, images = load_processed_data()
-    print(f"✓ Loaded {len(pdfs)} PDFs, {len(word_docs)} Word docs, {len(images)} images")
+    # Load data (needed for queries even with persistent collections)
+    if not args.use_persistent:
+        print("\nLoading processed data...")
+        pdfs, word_docs, images = load_processed_data()
+        print(f"✓ Loaded {len(pdfs)} PDFs, {len(word_docs)} Word docs, {len(images)} images")
+    else:
+        print("\nLoading processed data for queries...")
+        pdfs, word_docs, images = load_processed_data()
+        print(f"✓ Loaded {len(pdfs)} PDFs, {len(word_docs)} Word docs, {len(images)} images")
 
     # Setup databases
-    milvus_client, pdf_coll, word_coll, image_coll = setup_milvus_25(pdfs, word_docs, images)
-    weaviate_client = setup_weaviate(pdfs, word_docs, images)
+    milvus_client, pdf_coll, word_coll, image_coll = setup_milvus_25(pdfs, word_docs, images, use_persistent=args.use_persistent)
+    weaviate_client = setup_weaviate(pdfs, word_docs, images, use_persistent=args.use_persistent)
 
     # Run benchmarks
     print("\n" + "="*70)
@@ -430,10 +477,15 @@ def main():
     milvus_word_results = benchmark_milvus_word(milvus_client, word_coll, word_docs, num_queries)
     milvus_image_results = benchmark_milvus_images(milvus_client, image_coll, images, num_queries)
 
-    # Weaviate benchmarks (now with hybrid search!)
-    weaviate_pdf_results = benchmark_weaviate_pdfs(weaviate_client, pdfs, num_queries)
-    weaviate_word_results = benchmark_weaviate_word(weaviate_client, word_docs, num_queries)
-    weaviate_image_results = benchmark_weaviate_images(weaviate_client, images, num_queries)
+    # Weaviate benchmarks - use appropriate collection names
+    if args.use_persistent:
+        weaviate_pdf_results = benchmark_weaviate_pdfs(weaviate_client, pdfs, num_queries, collection_name="PersistentPDFs")
+        weaviate_word_results = benchmark_weaviate_word(weaviate_client, word_docs, num_queries, collection_name="PersistentWordDocs")
+        weaviate_image_results = benchmark_weaviate_images(weaviate_client, images, num_queries, collection_name="PersistentImages")
+    else:
+        weaviate_pdf_results = benchmark_weaviate_pdfs(weaviate_client, pdfs, num_queries)
+        weaviate_word_results = benchmark_weaviate_word(weaviate_client, word_docs, num_queries)
+        weaviate_image_results = benchmark_weaviate_images(weaviate_client, images, num_queries)
 
     # Calculate statistics
     print("\n" + "="*70)
@@ -444,6 +496,7 @@ def main():
         "metadata": {
             "description": "Fair comparison - same features tested on both systems",
             "num_queries": num_queries,
+            "use_persistent": args.use_persistent,
             "dataset_size": {
                 "pdfs": len(pdfs),
                 "word_docs": len(word_docs),
@@ -492,7 +545,7 @@ def main():
     # Save results
     import os
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_file = Path(os.path.join(script_dir, "..", "results", "phase3_fair_benchmark_results.json"))
+    output_file = Path(os.path.join(script_dir, "..", "results", "benchmark_results.json"))
     output_file.parent.mkdir(exist_ok=True)
 
     with open(output_file, "w") as f:
@@ -500,25 +553,29 @@ def main():
 
     print(f"\n✓ Results saved to {output_file}")
 
-    # Cleanup
-    print("\nCleaning up...")
-    pdf_coll.release()
-    word_coll.release()
-    image_coll.release()
+    # Cleanup (only if not using persistent collections)
+    if not args.use_persistent:
+        print("\nCleaning up temporary collections...")
+        pdf_coll.release()
+        word_coll.release()
+        image_coll.release()
 
-    from pymilvus import utility
-    utility.drop_collection("phase3_fair_pdfs")
-    utility.drop_collection("phase3_fair_word")
-    utility.drop_collection("phase3_fair_images")
+        from pymilvus import utility
+        utility.drop_collection("phase3_fair_pdfs")
+        utility.drop_collection("phase3_fair_word")
+        utility.drop_collection("phase3_fair_images")
 
-    weaviate_client.schema.delete_class("Phase3FairPDFs")
-    weaviate_client.schema.delete_class("Phase3FairWordDocs")
-    weaviate_client.schema.delete_class("Phase3FairImages")
+        weaviate_client.schema.delete_class("Phase3FairPDFs")
+        weaviate_client.schema.delete_class("Phase3FairWordDocs")
+        weaviate_client.schema.delete_class("Phase3FairImages")
+
+        print("✓ Cleanup complete")
+    else:
+        print("\nSkipping cleanup (using persistent collections)")
 
     milvus_client.disconnect()
 
-    print("✓ Cleanup complete\n")
-    print("="*70)
+    print("\n" + "="*70)
     print("✓ Phase 3 FAIR Benchmarks Complete!")
     print("="*70)
 

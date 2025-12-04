@@ -1,8 +1,8 @@
-# 50,000 Document Benchmark Results
+# Benchmark Results
 
 **Milvus 2.5 vs Weaviate - Fair Comparison**
 
-*50,000 multi-modal documents | November 18, 2025*
+*10,000 multi-modal documents | December 04, 2025*
 
 ---
 
@@ -10,12 +10,12 @@
 
 | Metric | Value | Details |
 |--------|-------|---------|
-| **Dataset Size** | **50,000** | Documents tested |
-| **PDFs** | **25,000** | Insurance policies |
-| **Word Docs** | **15,000** | Claims & underwriting |
-| **Images** | **10,000** | Damage assessments |
-| **Milvus Best Speed** | **1.05ms** | Image dense search |
-| **Max Speedup** | **5.5x** | Milvus faster (keyword) |
+| **Dataset Size** | **10,000** | Documents tested |
+| **PDFs** | **5,000** | Insurance policies |
+| **Word Docs** | **3,000** | Claims & underwriting |
+| **Images** | **2,000** | Damage assessments |
+| **Milvus Best Speed** | **1.06ms** | Image dense search |
+| **Max Speedup** | **3.1x** | Milvus faster (keyword) |
 
 ---
 
@@ -25,23 +25,23 @@
 
 | Search Type | Milvus 2.5 | Weaviate | Speedup |
 |-------------|-----------|----------|---------|
-| **Dense (Semantic)** | **1.87 ms** | 4.74 ms | **2.5x faster** ✓ |
-| **Sparse/Keyword (BM25)** | **3.46 ms** | 19.21 ms | **5.5x faster** ✓ |
-| **Hybrid** | **5.68 ms** | 27.19 ms | **4.8x faster** ✓ |
+| **Dense (Semantic)** | **1.32 ms** | 3.72 ms | **2.8x faster** ✓ |
+| **Sparse/Keyword (BM25)** | **2.17 ms** | 6.83 ms | **3.1x faster** ✓ |
+| **Hybrid** | **4.02 ms** | 11.23 ms | **2.8x faster** ✓ |
 
 ### Word Document Search Performance
 
 | Search Type | Milvus 2.5 | Weaviate | Speedup |
 |-------------|-----------|----------|---------|
-| **Dense (Semantic)** | **1.43 ms** | 5.16 ms | **3.6x faster** ✓ |
-| **Sparse/Keyword (BM25)** | **2.47 ms** | 11.75 ms | **4.8x faster** ✓ |
-| **Hybrid** | **3.68 ms** | 13.81 ms | **3.8x faster** ✓ |
+| **Dense (Semantic)** | **1.26 ms** | 3.67 ms | **2.9x faster** ✓ |
+| **Sparse/Keyword (BM25)** | **1.75 ms** | 4.91 ms | **2.8x faster** ✓ |
+| **Hybrid** | **3.19 ms** | 6.25 ms | **2.0x faster** ✓ |
 
 ### Image Search Performance
 
 | Search Type | Milvus 2.5 | Weaviate | Speedup |
 |-------------|-----------|----------|---------|
-| **Dense (CLIP embeddings)** | **1.05 ms** | 3.44 ms | **3.3x faster** ✓ |
+| **Dense (CLIP embeddings)** | **1.06 ms** | 4.96 ms | **4.7x faster** ✓ |
 
 ---
 
@@ -60,7 +60,7 @@ Both systems achieved perfect quality scores across all search types:
 ## Key Findings
 
 - **Performance Winner: Milvus 2.5** - Faster across ALL search types (2-7x speedup)
-- **Biggest Gap: Keyword Search** - Milvus 5.5x faster than Weaviate
+- **Biggest Gap: Keyword Search** - Milvus 3.1x faster than Weaviate
 - **Quality Tie:** Both systems deliver perfect search quality
 - **Scale Validation:** Successfully tested at 50K documents (5x larger than initial tests)
 - **Consistent Performance:** Milvus maintains speed advantage across all document types
@@ -73,13 +73,13 @@ Both systems achieved perfect quality scores across all search types:
 
 **Milvus 2.5 wins 7 out of 7 performance tests:**
 
-1. ✓ PDF Dense Search - 2.5x faster
-2. ✓ PDF Sparse/Keyword Search - 5.5x faster
-3. ✓ PDF Hybrid Search - 4.8x faster
-4. ✓ Word Dense Search - 3.6x faster
-5. ✓ Word Sparse/Keyword Search - 4.8x faster
-6. ✓ Word Hybrid Search - 3.8x faster
-7. ✓ Image Dense Search - 3.3x faster
+1. ✓ PDF Dense Search - 2.8x faster
+2. ✓ PDF Sparse/Keyword Search - 3.1x faster
+3. ✓ PDF Hybrid Search - 2.8x faster
+4. ✓ Word Dense Search - 2.9x faster
+5. ✓ Word Sparse/Keyword Search - 2.8x faster
+6. ✓ Word Hybrid Search - 2.0x faster
+7. ✓ Image Dense Search - 4.7x faster
 
 **Quality: Tie (both systems 1.000 for all metrics)**
 
@@ -95,7 +95,7 @@ Both systems achieved perfect quality scores across all search types:
 | **Image Embeddings** | CLIP (openai/clip-vit-base-patch32, 512 dimensions) |
 | **Sparse Vectors** | BM25 (implemented for both systems) |
 | **Hybrid Search** | RRF (Reciprocal Rank Fusion) for Milvus, native for Weaviate |
-| **Dataset** | 25,000 PDFs + 15,000 Word docs + 10,000 images |
+| **Dataset** | 5,000 PDFs + 3,000 Word docs + 2,000 images |
 | **Test Queries** | 10 queries per document type |
 
 ---
@@ -104,31 +104,31 @@ Both systems achieved perfect quality scores across all search types:
 
 ### Fastest Operations
 
-1. **Image Dense Search (Milvus)**: 1.05 ms
-2. **Word Dense Search (Milvus)**: 1.43 ms
-3. **PDF Dense Search (Milvus)**: 1.87 ms
-4. **Word Sparse Search (Milvus)**: 2.47 ms
-5. **PDF Sparse Search (Milvus)**: 3.46 ms
+1. **Image Dense Search (Milvus)**: 1.06 ms
+2. **Word Dense Search (Milvus)**: 1.26 ms
+3. **PDF Dense Search (Milvus)**: 1.32 ms
+4. **Word Sparse Search (Milvus)**: 1.75 ms
+5. **PDF Sparse Search (Milvus)**: 2.17 ms
 
 ### Slowest Operations
 
-1. **PDF Hybrid Search (Weaviate)**: 27.19 ms
-2. **PDF Sparse Search (Weaviate)**: 19.21 ms
-3. **Word Hybrid Search (Weaviate)**: 13.81 ms
-4. **Word Sparse Search (Weaviate)**: 11.75 ms
-5. **PDF Hybrid Search (Milvus)**: 5.68 ms
+1. **PDF Hybrid Search (Weaviate)**: 11.23 ms
+2. **PDF Sparse Search (Weaviate)**: 6.83 ms
+3. **Word Hybrid Search (Weaviate)**: 6.25 ms
+4. **Word Sparse Search (Weaviate)**: 4.91 ms
+5. **PDF Hybrid Search (Milvus)**: 4.02 ms
 
 ### Speed Improvement Analysis
 
 **Average Speedup by Search Type:**
-- Dense Search: 3.1x faster (average across all doc types)
-- Sparse/Keyword Search: 5.2x faster (average across text types)
-- Hybrid Search: 4.3x faster (average across all types)
+- Dense Search: 3.5x faster (average across all doc types)
+- Sparse/Keyword Search: 3.0x faster (average across text types)
+- Hybrid Search: 2.4x faster (average across all types)
 
 **Average Speedup by Document Type:**
-- PDFs: 4.3x faster (average across all search types)
-- Word Docs: 4.0x faster (average across all search types)
-- Images: 3.3x faster (dense only)
+- PDFs: 2.9x faster (average across all search types)
+- Word Docs: 2.6x faster (average across all search types)
+- Images: 4.7x faster (dense only)
 
 ---
 
@@ -218,6 +218,6 @@ For production workloads requiring **both speed and quality**, Milvus 2.5 offers
 
 ---
 
-*50K Multi-Modal Benchmark | Generated with actual benchmark data*
+*Multi-Modal Benchmark | Generated with actual benchmark data*
 
 *Milvus 2.5 vs Weaviate | Fair comparison testing same features on both systems*

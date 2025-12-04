@@ -58,7 +58,7 @@ services:
       retries: 3
     ports:
       - "19530:19530"
-      - "9091:9091"
+      - "9095:9091"
     depends_on:
       - etcd
       - minio
@@ -118,7 +118,7 @@ services:
       retries: 3
     ports:
       - "19531:19530"
-      - "9094:9091"
+      - "9096:9091"
     depends_on:
       - etcd-24
       - minio-24

@@ -8,6 +8,10 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any
 import argparse
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 from tqdm import tqdm
 import pdfplumber
 from docx import Document
@@ -251,7 +255,9 @@ class MultiModalProcessor:
         processed_images = []
 
         for meta in tqdm(metadata, desc="Processing images"):
-            image_path = Path("./data") / meta['path']
+            # Get base directory from environment variable
+            base_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")).parent
+            image_path = base_dir / meta['path']
 
             if not image_path.exists():
                 print(f"✗ Image not found: {image_path}")
@@ -303,7 +309,7 @@ def main():
     processor = MultiModalProcessor()
 
     # Define paths
-    data_dir = Path("./data/multimodal")
+    data_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
     pdfs_dir = data_dir / "pdfs"
     word_dir = data_dir / "word"
     images_dir = data_dir / "images"

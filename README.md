@@ -1,122 +1,85 @@
-# Vector Database Benchmark: Milvus 2.5 vs Weaviate
+# Milvus 2.5 vs Weaviate Benchmark POC
 
-Benchmark comparing Milvus 2.5 and Weaviate vector databases on multi-modal insurance documents.
+A comprehensive benchmarking suite comparing **Milvus 2.5** and **Weaviate** for multi-modal search (Text + Image) using Dense, Sparse, and Hybrid search strategies.
 
----
+## 🚀 Quick Start
 
-## Quick Start
+### 1. Prerequisites
+*   Docker & Docker Compose
+*   Python 3.10+
+*   Git
 
+### 2. Setup
 ```bash
-cd /Users/guptarohyt/workspace/learning/weaviate/scripts
+# Clone repository
+git clone <repo-url>
+cd milvus-weaviate-poc
 
-# 1. Generate data (30 min) - Creates 5K PDFs, 3K Word docs, 2K images
-python generate_data.py
-
-# 2. Process data (12 min) - Extract text + create embeddings
-python process_data.py
-
-# 3. Benchmark (2 min) - Test both databases
-python benchmark.py
-
-# 4. Evaluate quality (1 min) - Optional
-python evaluate_quality.py
-
-# 5. Generate report (<1 sec)
-python generate_report.py
-
-# 6. View results
-open ../report.html
-```
-
----
-
-## Scripts
-
-| Script | Purpose | Time |
-|--------|---------|------|
-| `generate_data.py` | Generate PDFs, Word docs, images | ~30 min |
-| `process_data.py` | Extract text + create embeddings | ~12 min |
-| `benchmark.py` | Load to DBs + run speed tests | ~2 min |
-| `evaluate_quality.py` | Measure retrieval quality | ~1 min |
-| `generate_report.py` | Create HTML report | <1 sec |
-
----
-
-## Custom Dataset Size
-
-```bash
-# Quick test (100 docs)
-python generate_data.py --pdfs 50 --word 30 --images 20
-
-# Medium (1K docs)
-python generate_data.py --pdfs 500 --word 300 --images 200
-
-# Production (10K docs) - default
-python generate_data.py --pdfs 5000 --word 3000 --images 2000
-```
-
----
-
-## Data Storage
-
-```
-scripts/data/multimodal/
-├── pdfs/          ← Generated PDF files
-├── word/          ← Generated Word docs
-├── images/        ← Generated images
-└── processed/     ← JSON with embeddings
-
-results/
-├── benchmark_results.json   ← Speed benchmarks
-└── quality_results.json     ← Quality metrics
-
-report.html         ← Final report
-```
-
----
-
-## Results (10K Documents)
-
-**Performance:**
-- Milvus 2.5: 0.90-2.38ms (2-4x faster)
-- Weaviate: 2.32-6.17ms
-
-**Quality:**
-- Both: 100% precision, NDCG=1.0, MRR=1.0
-
-**Winner:** Milvus 2.5 (better performance, same quality)
-
----
-
-## Prerequisites
-
-```bash
-# Docker running
-docker ps  # Should see milvus and weaviate
-
-# Virtual environment
+# Create virtual environment
+python3 -m venv venv
 source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Start Infrastructure (Milvus, Weaviate, MinIO)
+docker-compose up -d
 ```
 
----
-
-## Project Structure
-
-```
-weaviate/
-├── scripts/
-│   ├── generate_data.py         # Step 1
-│   ├── process_data.py           # Step 2
-│   ├── benchmark.py              # Step 3
-│   ├── evaluate_quality.py       # Step 4
-│   ├── generate_report.py        # Step 5
-│   └── data/multimodal/          # Data storage
-├── results/                      # Benchmark results
-├── report.html                   # Final report
-└── README.md                     # This file
+### 3. Run Full Benchmark
+```bash
+# Generate data, load, benchmark, and report (approx 10-15 mins for 10k docs)
+python scripts/generate_data.py --total 10000
+python scripts/process_data.py
+python scripts/benchmark.py
+python scripts/generate_report.py
 ```
 
----
+## 📚 Documentation
 
-**Total Time:** ~45 minutes for 10K documents
+| Document | Audience | Purpose |
+| :--- | :--- | :--- |
+| **[USER_GUIDE.md](USER_GUIDE.md)** | **Technical Users** | Step-by-step guide to running benchmarks, persistent data, and reporting. |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | **Architects** | Deep dive into tech stack, infrastructure, and methodology. |
+| **[MILVUS_2.5_IMPROVEMENTS.md](MILVUS_2.5_IMPROVEMENTS.md)** | **Developers** | Technical details on new Milvus 2.5 features (Sparse, Grouping). |
+| **[BENCHMARK_REPORT.md](BENCHMARK_REPORT.md)** | **Everyone** | Latest benchmark results summary. |
+
+## 🏗️ Project Structure
+
+```
+milvus-weaviate-poc/
+├── data/                   # Generated synthetic data
+├── results/                # Benchmark results (JSON)
+├── scripts/                # Python scripts
+│   ├── generate_data.py    # Data generation
+│   ├── process_data.py     # Embedding generation
+│   ├── benchmark.py        # Main benchmark script
+│   └── generate_report.py  # HTML/Markdown reporting
+├── docker-compose.yml      # Infrastructure definition
+└── requirements.txt        # Python dependencies
+```
+
+## ⚡ Key Features Tested
+
+*   **Multi-Modal Data**: PDFs (Text), Word Docs (Text), Images (Visual).
+*   **Search Methods**:
+    *   **Dense**: Semantic search (Sentence Transformers / CLIP).
+    *   **Sparse**: Keyword search (BM25).
+    *   **Hybrid**: RRF Fusion of Dense + Sparse.
+*   **Scale**: Verified up to 50,000 documents.
+
+## 🛠️ Development
+
+### Persistent Mode (Faster Iteration)
+To avoid reloading data every time:
+1.  Load data once: `python scripts/load_data_persistent.py`
+2.  Run benchmark repeatedly: `python scripts/benchmark.py --use-persistent`
+
+### Environment Variables
+Create a `.env` file to customize paths:
+```bash
+DATA_OUTPUT_DIR=./data/custom_location
+```
+
+## 🤝 Contributing
+Please read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the system design before making changes.
