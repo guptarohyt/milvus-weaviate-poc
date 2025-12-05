@@ -34,6 +34,7 @@ def get_data_dir():
     return Path(data_output)
 
 from milvus_25_hybrid_client import Milvus25HybridClient
+from postgresql_client import PostgreSQLVectorClient
 import weaviate
 
 
@@ -240,6 +241,141 @@ def setup_weaviate(pdfs, word_docs, images, use_persistent=False):
     print("✓ Weaviate setup complete\n")
 
     return client
+
+
+def setup_postgresql(pdfs, word_docs, images, use_persistent=False):
+    """Setup PostgreSQL with pgvector for vector search."""
+    client = PostgreSQLVectorClient()
+    client.connect()
+    
+    if use_persistent:
+        print("\n[PostgreSQL] Using existing persistent tables...")
+        print("✓ Connected to persistent tables\n")
+        return client
+    
+    print("\n[PostgreSQL] Creating tables with vector columns...")
+    
+    # Create tables
+    client.create_table("pdfs", vector_dim=384)
+    client.create_table("word_docs", vector_dim=384)
+    client.create_table("images", vector_dim=512)
+    
+    # Create vector indexes
+    print("[PostgreSQL] Creating vector indexes...")
+    client.create_vector_index("pdfs", index_type="ivfflat")
+    client.create_vector_index("word_docs", index_type="ivfflat")
+    client.create_vector_index("images", index_type="ivfflat")
+    
+    # Insert PDFs
+    print("[PostgreSQL] Inserting PDFs...")
+    pdf_docs = [{
+        "filename": p["filename"],
+        "text": p["text"],
+        "policy_id": p.get("id", "UNKNOWN"),
+        "policy_type": p.get("type", "pdf")
+    } for p in pdfs]
+    pdf_embeddings = [p["embedding"] for p in pdfs]
+    client.insert_documents("pdfs", pdf_docs, pdf_embeddings)
+    
+    # Insert Word docs
+    print("[PostgreSQL] Inserting Word docs...")
+    word_doc_objs = [{
+        "filename": w["filename"],
+        "text": w["text"],
+        "policy_id": w.get("id", "UNKNOWN"),
+        "policy_type": w.get("type", "word")
+    } for w in word_docs]
+    word_embeddings = [w["embedding"] for w in word_docs]
+    client.insert_documents("word_docs", word_doc_objs, word_embeddings)
+    
+    # Insert Images
+    print("[PostgreSQL] Inserting Images...")
+    image_docs = [{
+        "filename": img["filename"],
+        "text": img.get("description", ""),
+        "policy_id": img.get("claim_id", "UNKNOWN"),
+        "policy_type": img.get("damage_type", "unknown")
+    } for img in images]
+    image_embeddings = [img["image_embedding"] for img in images]
+    client.insert_documents("images", image_docs, image_embeddings)
+    
+    print("✓ PostgreSQL setup complete\n")
+    
+    return client
+
+
+def benchmark_postgresql_pdfs(client, pdfs, num_queries=10):
+    """Benchmark PostgreSQL PDF search (dense, keyword, hybrid)."""
+    results = {
+        "dense": [],
+        "keyword": [],
+        "hybrid": []
+    }
+    
+    print(f"\n[PostgreSQL] Benchmarking PDF search ({num_queries} queries)...")
+    
+    for i in range(num_queries):
+        query_vector = pdfs[i]["embedding"]
+        query_text = pdfs[i]["text"]
+        
+        # Dense search
+        _, elapsed = client.dense_search("pdfs", query_vector, limit=5)
+        results["dense"].append(elapsed)
+        
+        # Keyword search
+        _, elapsed = client.keyword_search("pdfs", query_text, limit=5)
+        results["keyword"].append(elapsed)
+        
+        # Hybrid search
+        _, elapsed = client.hybrid_search("pdfs", query_vector, query_text, limit=5)
+        results["hybrid"].append(elapsed)
+    
+    return results
+
+
+def benchmark_postgresql_word(client, word_docs, num_queries=10):
+    """Benchmark PostgreSQL Word doc search."""
+    results = {
+        "dense": [],
+        "keyword": [],
+        "hybrid": []
+    }
+    
+    print(f"[PostgreSQL] Benchmarking Word doc search ({num_queries} queries)...")
+    
+    for i in range(num_queries):
+        query_vector = word_docs[i]["embedding"]
+        query_text = word_docs[i]["text"]
+        
+        # Dense search
+        _, elapsed = client.dense_search("word_docs", query_vector, limit=5)
+        results["dense"].append(elapsed)
+        
+        # Keyword search
+        _, elapsed = client.keyword_search("word_docs", query_text, limit=5)
+        results["keyword"].append(elapsed)
+        
+        # Hybrid search
+        _, elapsed = client.hybrid_search("word_docs", query_vector, query_text, limit=5)
+        results["hybrid"].append(elapsed)
+    
+    return results
+
+
+def benchmark_postgresql_images(client, images, num_queries=10):
+    """Benchmark PostgreSQL Image search (dense only)."""
+    results = {"dense": []}
+    
+    print(f"[PostgreSQL] Benchmarking Image search ({num_queries} queries)...")
+    
+    for i in range(num_queries):
+        query_vector = images[i]["image_embedding"]
+        
+        # Dense search (images don't have meaningful text for keyword search)
+        _, elapsed = client.dense_search("images", query_vector, limit=5)
+        results["dense"].append(elapsed)
+    
+    return results
 
 
 def benchmark_milvus_pdfs(client, collection, pdfs, num_queries=10):
@@ -477,6 +613,7 @@ Examples:
     # Setup databases
     milvus_client, pdf_coll, word_coll, image_coll = setup_milvus_25(pdfs, word_docs, images, use_persistent=args.use_persistent)
     weaviate_client = setup_weaviate(pdfs, word_docs, images, use_persistent=args.use_persistent)
+    postgresql_client = setup_postgresql(pdfs, word_docs, images, use_persistent=args.use_persistent)
 
     # Run benchmarks
     print("\n" + "="*70)
@@ -499,6 +636,11 @@ Examples:
         weaviate_pdf_results = benchmark_weaviate_pdfs(weaviate_client, pdfs, num_queries)
         weaviate_word_results = benchmark_weaviate_word(weaviate_client, word_docs, num_queries)
         weaviate_image_results = benchmark_weaviate_images(weaviate_client, images, num_queries)
+
+    # PostgreSQL benchmarks
+    postgresql_pdf_results = benchmark_postgresql_pdfs(postgresql_client, pdfs, num_queries)
+    postgresql_word_results = benchmark_postgresql_word(postgresql_client, word_docs, num_queries)
+    postgresql_image_results = benchmark_postgresql_images(postgresql_client, images, num_queries)
 
     # Calculate statistics
     print("\n" + "="*70)
@@ -533,6 +675,15 @@ Examples:
             "word_keyword": calculate_stats(weaviate_word_results["keyword"]),
             "word_hybrid": calculate_stats(weaviate_word_results["hybrid"]),
             "image_dense": calculate_stats(weaviate_image_results["dense"])
+        },
+        "postgresql": {
+            "pdf_dense": calculate_stats(postgresql_pdf_results["dense"]),
+            "pdf_keyword": calculate_stats(postgresql_pdf_results["keyword"]),
+            "pdf_hybrid": calculate_stats(postgresql_pdf_results["hybrid"]),
+            "word_dense": calculate_stats(postgresql_word_results["dense"]),
+            "word_keyword": calculate_stats(postgresql_word_results["keyword"]),
+            "word_hybrid": calculate_stats(postgresql_word_results["hybrid"]),
+            "image_dense": calculate_stats(postgresql_image_results["dense"])
         }
     }
 
@@ -554,6 +705,15 @@ Examples:
     print(f"  Word Keyword:{results['weaviate']['word_keyword']['avg']:.2f}ms avg")
     print(f"  Word Hybrid: {results['weaviate']['word_hybrid']['avg']:.2f}ms avg")
     print(f"  Image Dense: {results['weaviate']['image_dense']['avg']:.2f}ms avg")
+
+    print("\nPostgreSQL Results:")
+    print(f"  PDF Dense:   {results['postgresql']['pdf_dense']['avg']:.2f}ms avg")
+    print(f"  PDF Keyword: {results['postgresql']['pdf_keyword']['avg']:.2f}ms avg")
+    print(f"  PDF Hybrid:  {results['postgresql']['pdf_hybrid']['avg']:.2f}ms avg")
+    print(f"  Word Dense:  {results['postgresql']['word_dense']['avg']:.2f}ms avg")
+    print(f"  Word Keyword:{results['postgresql']['word_keyword']['avg']:.2f}ms avg")
+    print(f"  Word Hybrid: {results['postgresql']['word_hybrid']['avg']:.2f}ms avg")
+    print(f"  Image Dense: {results['postgresql']['image_dense']['avg']:.2f}ms avg")
 
     # Save results
     import os
