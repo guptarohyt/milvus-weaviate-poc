@@ -37,6 +37,7 @@ def get_data_dir():
     return Path(data_output)
 
 from milvus_25_hybrid_client import Milvus25HybridClient
+from postgresql_client import PostgreSQLVectorClient
 import weaviate
 
 
@@ -326,6 +327,97 @@ def setup_weaviate_collections(pdfs, images):
     return client
 
 
+def setup_postgresql_collections(pdfs, images):
+    """Setup PostgreSQL collections for quality eval."""
+    client = PostgreSQLVectorClient()
+    client.connect()
+
+    print("[PostgreSQL] Creating collections for quality evaluation...")
+
+    # PDF collection
+    client.create_table("quality_eval_pdfs", vector_dim=384)
+    client.create_vector_index("quality_eval_pdfs", index_type="ivfflat")
+
+    pdf_docs = [{
+        "filename": pdf["filename"],
+        "text": pdf["text"],
+        "policy_id": pdf.get("id", "UNKNOWN"),
+        "policy_type": pdf.get("type", "pdf")
+    } for pdf in pdfs]
+    pdf_embeddings = [pdf["embedding"] for pdf in pdfs]
+    client.insert_documents("quality_eval_pdfs", pdf_docs, pdf_embeddings)
+
+    # Image collection
+    client.create_table("quality_eval_images", vector_dim=512)
+    client.create_vector_index("quality_eval_images", index_type="ivfflat")
+
+    image_docs = [{
+        "filename": img["filename"],
+        "text": img.get("description", ""),
+        "policy_id": img.get("claim_id", "UNKNOWN"),
+        "policy_type": img.get("damage_type", "unknown")
+    } for img in images]
+    image_embeddings = [img["image_embedding"] for img in images]
+    client.insert_documents("quality_eval_images", image_docs, image_embeddings)
+
+    print("✓ PostgreSQL collections ready\n")
+
+    return client
+
+
+def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10):
+    """Evaluate PostgreSQL PDF search quality."""
+    results = {
+        "dense": {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []},
+        "keyword": {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []},
+        "hybrid": {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []}
+    }
+
+    print(f"[PostgreSQL] Evaluating PDF search quality ({num_queries} queries)...")
+
+    for query_idx in range(num_queries):
+        query_vector = pdfs[query_idx]["embedding"]
+        query_text = pdfs[query_idx]["text"]
+        relevance = ground_truth[query_idx]
+
+        # Dense search
+        dense_results, _ = client.dense_search("quality_eval_pdfs", query_vector, limit=100)
+        # Map filenames back to document indices
+        pdf_filename_to_idx = {pdf["filename"]: i for i, pdf in enumerate(pdfs)}
+        dense_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in dense_results if r.get("filename") in pdf_filename_to_idx]
+
+        results["dense"]["precision@5"].append(precision_at_k(dense_ids, relevance, 5))
+        results["dense"]["recall@5"].append(recall_at_k(dense_ids, relevance, 5))
+        results["dense"]["ndcg@5"].append(ndcg_at_k(dense_ids, relevance, 5))
+        results["dense"]["mrr"].append(mean_reciprocal_rank(dense_ids, relevance))
+
+        # Keyword search
+        keyword_results, _ = client.keyword_search("quality_eval_pdfs", query_text, limit=100)
+        keyword_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in keyword_results if r.get("filename") in pdf_filename_to_idx]
+
+        results["keyword"]["precision@5"].append(precision_at_k(keyword_ids, relevance, 5))
+        results["keyword"]["recall@5"].append(recall_at_k(keyword_ids, relevance, 5))
+        results["keyword"]["ndcg@5"].append(ndcg_at_k(keyword_ids, relevance, 5))
+        results["keyword"]["mrr"].append(mean_reciprocal_rank(keyword_ids, relevance))
+
+        # Hybrid search
+        hybrid_results, _ = client.hybrid_search("quality_eval_pdfs", query_vector, query_text, limit=100)
+        hybrid_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in hybrid_results if r.get("filename") in pdf_filename_to_idx]
+
+        results["hybrid"]["precision@5"].append(precision_at_k(hybrid_ids, relevance, 5))
+        results["hybrid"]["recall@5"].append(recall_at_k(hybrid_ids, relevance, 5))
+        results["hybrid"]["ndcg@5"].append(ndcg_at_k(hybrid_ids, relevance, 5))
+        results["hybrid"]["mrr"].append(mean_reciprocal_rank(hybrid_ids, relevance))
+
+    # Calculate averages
+    for search_type in ["dense", "keyword", "hybrid"]:
+        for metric in ["precision@5", "recall@5", "ndcg@5", "mrr"]:
+            avg = np.mean(results[search_type][metric])
+            results[search_type][f"{metric}_avg"] = avg
+
+    return results
+
+
 def evaluate_milvus_pdfs(client, collection, pdfs, ground_truth, filename_to_idx, num_queries=10):
     """Evaluate Milvus PDF search quality."""
     results = {
@@ -432,6 +524,7 @@ def main():
     # Setup databases
     milvus_client, pdf_coll, image_coll = setup_milvus_collections(pdfs, images)
     weaviate_client = setup_weaviate_collections(pdfs, images)
+    postgresql_client = setup_postgresql_collections(pdfs, images)
 
     # Evaluate PDF search
     print("\n" + "="*70)
@@ -440,6 +533,7 @@ def main():
 
     milvus_pdf_quality = evaluate_milvus_pdfs(milvus_client, pdf_coll, pdfs, pdf_ground_truth, pdf_filename_to_idx)
     weaviate_pdf_quality = evaluate_weaviate_pdfs(weaviate_client, pdfs, pdf_ground_truth)
+    postgresql_pdf_quality = evaluate_postgresql_pdfs(postgresql_client, pdfs, pdf_ground_truth)
 
     # Print results
     print("\n" + "="*70)
@@ -460,6 +554,14 @@ def main():
     print(f"    NDCG@5:      {weaviate_pdf_quality['ndcg@5_avg']:.3f}")
     print(f"    MRR:         {weaviate_pdf_quality['mrr_avg']:.3f}")
 
+    print("\nPostgreSQL PDF Search Quality:")
+    for search_type in ["dense", "keyword", "hybrid"]:
+        print(f"\n  {search_type.upper()}:")
+        print(f"    Precision@5: {postgresql_pdf_quality[search_type]['precision@5_avg']:.3f}")
+        print(f"    Recall@5:    {postgresql_pdf_quality[search_type]['recall@5_avg']:.3f}")
+        print(f"    NDCG@5:      {postgresql_pdf_quality[search_type]['ndcg@5_avg']:.3f}")
+        print(f"    MRR:         {postgresql_pdf_quality[search_type]['mrr_avg']:.3f}")
+
     # Save results
     import os
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -468,6 +570,7 @@ def main():
     quality_results = {
         "milvus_25_pdfs": milvus_pdf_quality,
         "weaviate_pdfs": weaviate_pdf_quality,
+        "postgresql_pdfs": postgresql_pdf_quality,
         "ground_truth_notes": {
             "relevance_scale": "0 (not relevant) to 3 (perfect match)",
             "threshold": "Score >= 2 considered relevant for precision/recall",
@@ -493,7 +596,17 @@ def main():
     weaviate_client.schema.delete_class("QualityEvalPDFs")
     weaviate_client.schema.delete_class("QualityEvalImages")
 
+    # PostgreSQL cleanup
+    import psycopg2
+    conn = psycopg2.connect(host="localhost", port=5432, user="postgres", password="postgres", database="vectordb")
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS quality_eval_pdfs, quality_eval_images;")
+    conn.commit()
+    cur.close()
+    conn.close()
+
     milvus_client.disconnect()
+    postgresql_client.disconnect()
 
     print("✓ Cleanup complete\n")
     print("="*70)
