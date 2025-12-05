@@ -49,14 +49,31 @@ def generate_html_report():
     w_word_hybrid = w["word_hybrid"]["avg"]
     w_img_dense = w["image_dense"]["avg"]
 
-    # Calculate speedups
-    pdf_dense_speedup = w_pdf_dense / m_pdf_dense
-    pdf_keyword_speedup = w_pdf_keyword / m_pdf_sparse
-    pdf_hybrid_speedup = w_pdf_hybrid / m_pdf_hybrid
-    word_dense_speedup = w_word_dense / m_word_dense
-    word_keyword_speedup = w_word_keyword / m_word_sparse
-    word_hybrid_speedup = w_word_hybrid / m_word_hybrid
-    img_dense_speedup = w_img_dense / m_img_dense
+    # Extract PostgreSQL results
+    p = bench_results["postgresql"]
+    p_pdf_dense = p["pdf_dense"]["avg"]
+    p_pdf_keyword = p["pdf_keyword"]["avg"]
+    p_pdf_hybrid = p["pdf_hybrid"]["avg"]
+    p_word_dense = p["word_dense"]["avg"]
+    p_word_keyword = p["word_keyword"]["avg"]
+    p_word_hybrid = p["word_hybrid"]["avg"]
+    p_img_dense = p["image_dense"]["avg"]
+
+    # Calculate speedups (vs Milvus as baseline)
+    pdf_dense_speedup_w = w_pdf_dense / m_pdf_dense
+    pdf_dense_speedup_p = p_pdf_dense / m_pdf_dense
+    pdf_keyword_speedup_w = w_pdf_keyword / m_pdf_sparse
+    pdf_keyword_speedup_p = p_pdf_keyword / m_pdf_sparse
+    pdf_hybrid_speedup_w = w_pdf_hybrid / m_pdf_hybrid
+    pdf_hybrid_speedup_p = p_pdf_hybrid / m_pdf_hybrid
+    word_dense_speedup_w = w_word_dense / m_word_dense
+    word_dense_speedup_p = p_word_dense / m_word_dense
+    word_keyword_speedup_w = w_word_keyword / m_word_sparse
+    word_keyword_speedup_p = p_word_keyword / m_word_sparse
+    word_hybrid_speedup_w = w_word_hybrid / m_word_hybrid
+    word_hybrid_speedup_p = p_word_hybrid / m_word_hybrid
+    img_dense_speedup_w = w_img_dense / m_img_dense
+    img_dense_speedup_p = p_img_dense / m_img_dense
 
     # Find best Milvus speed
     milvus_best = min(m_pdf_dense, m_pdf_sparse, m_pdf_hybrid,
@@ -67,7 +84,7 @@ def generate_html_report():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Benchmark Report ({total_docs:,} docs): Milvus 2.5 vs Weaviate</title>
+    <title>Benchmark Report ({total_docs:,} docs): Milvus 2.5 vs Weaviate vs PostgreSQL</title>
     <style>
         * {{
             margin: 0;
