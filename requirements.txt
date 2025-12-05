@@ -1,6 +1,7 @@
 # Vector Database Clients
 pymilvus==2.4.0
 weaviate-client==4.9.3
+psycopg2-binary==2.9.9
 
 # Embeddings & ML
 sentence-transformers==2.3.1
