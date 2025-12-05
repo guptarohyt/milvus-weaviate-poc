@@ -75,6 +75,15 @@ def generate_html_report():
     img_dense_speedup_w = w_img_dense / m_img_dense
     img_dense_speedup_p = p_img_dense / m_img_dense
 
+    # Legacy variables for existing text (Milvus vs Weaviate)
+    pdf_dense_speedup = pdf_dense_speedup_w
+    pdf_keyword_speedup = pdf_keyword_speedup_w
+    pdf_hybrid_speedup = pdf_hybrid_speedup_w
+    word_dense_speedup = word_dense_speedup_w
+    word_keyword_speedup = word_keyword_speedup_w
+    word_hybrid_speedup = word_hybrid_speedup_w
+    img_dense_speedup = img_dense_speedup_w
+
     # Find best Milvus speed
     milvus_best = min(m_pdf_dense, m_pdf_sparse, m_pdf_hybrid,
                      m_word_dense, m_word_sparse, m_word_hybrid, m_img_dense)
@@ -197,7 +206,7 @@ def generate_html_report():
     <div class="container">
         <div class="header">
             <h1>Benchmark Results</h1>
-            <div class="subtitle">Milvus 2.5 vs Weaviate - Fair Comparison</div>
+            <div class="subtitle">Milvus 2.5 vs Weaviate vs PostgreSQL - Fair Comparison</div>
             <div class="subtitle" style="font-size: 0.9em; margin-top: 10px;">
                 {total_docs:,} multi-modal documents | {datetime.now().strftime("%B %d, %Y")}
             </div>
@@ -247,7 +256,8 @@ def generate_html_report():
                         <th>Search Type</th>
                         <th>Milvus 2.5</th>
                         <th>Weaviate</th>
-                        <th>Speedup</th>
+                        <th>PostgreSQL</th>
+                        <th>Speedup (Milvus vs)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -255,19 +265,22 @@ def generate_html_report():
                         <td>Dense (Semantic)</td>
                         <td>{m_pdf_dense:.2f} ms</td>
                         <td>{w_pdf_dense:.2f} ms</td>
-                        <td class="speedup">{pdf_dense_speedup:.1f}x faster</td>
+                        <td>{p_pdf_dense:.2f} ms</td>
+                        <td class="speedup">W: {pdf_dense_speedup_w:.1f}x<br>P: {pdf_dense_speedup_p:.1f}x</td>
                     </tr>
                     <tr class="winner">
-                        <td>Sparse/Keyword (BM25)</td>
+                        <td>Sparse/Keyword</td>
                         <td>{m_pdf_sparse:.2f} ms</td>
                         <td>{w_pdf_keyword:.2f} ms</td>
-                        <td class="speedup">{pdf_keyword_speedup:.1f}x faster</td>
+                        <td>{p_pdf_keyword:.2f} ms</td>
+                        <td class="speedup">W: {pdf_keyword_speedup_w:.1f}x<br>P: {pdf_keyword_speedup_p:.1f}x</td>
                     </tr>
                     <tr class="winner">
                         <td>Hybrid</td>
                         <td>{m_pdf_hybrid:.2f} ms</td>
                         <td>{w_pdf_hybrid:.2f} ms</td>
-                        <td class="speedup">{pdf_hybrid_speedup:.1f}x faster</td>
+                        <td>{p_pdf_hybrid:.2f} ms</td>
+                        <td class="speedup">W: {pdf_hybrid_speedup_w:.1f}x<br>P: {pdf_hybrid_speedup_p:.1f}x</td>
                     </tr>
                 </tbody>
             </table>
@@ -279,7 +292,8 @@ def generate_html_report():
                         <th>Search Type</th>
                         <th>Milvus 2.5</th>
                         <th>Weaviate</th>
-                        <th>Speedup</th>
+                        <th>PostgreSQL</th>
+                        <th>Speedup (Milvus vs)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -287,19 +301,22 @@ def generate_html_report():
                         <td>Dense (Semantic)</td>
                         <td>{m_word_dense:.2f} ms</td>
                         <td>{w_word_dense:.2f} ms</td>
-                        <td class="speedup">{word_dense_speedup:.1f}x faster</td>
+                        <td>{p_word_dense:.2f} ms</td>
+                        <td class="speedup">W: {word_dense_speedup_w:.1f}x<br>P: {word_dense_speedup_p:.1f}x</td>
                     </tr>
                     <tr class="winner">
-                        <td>Sparse/Keyword (BM25)</td>
+                        <td>Sparse/Keyword</td>
                         <td>{m_word_sparse:.2f} ms</td>
                         <td>{w_word_keyword:.2f} ms</td>
-                        <td class="speedup">{word_keyword_speedup:.1f}x faster</td>
+                        <td>{p_word_keyword:.2f} ms</td>
+                        <td class="speedup">W: {word_keyword_speedup_w:.1f}x<br>P: {word_keyword_speedup_p:.1f}x</td>
                     </tr>
                     <tr class="winner">
                         <td>Hybrid</td>
                         <td>{m_word_hybrid:.2f} ms</td>
                         <td>{w_word_hybrid:.2f} ms</td>
-                        <td class="speedup">{word_hybrid_speedup:.1f}x faster</td>
+                        <td>{p_word_hybrid:.2f} ms</td>
+                        <td class="speedup">W: {word_hybrid_speedup_w:.1f}x<br>P: {word_hybrid_speedup_p:.1f}x</td>
                     </tr>
                 </tbody>
             </table>
@@ -311,7 +328,8 @@ def generate_html_report():
                         <th>Search Type</th>
                         <th>Milvus 2.5</th>
                         <th>Weaviate</th>
-                        <th>Speedup</th>
+                        <th>PostgreSQL</th>
+                        <th>Speedup (Milvus vs)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -319,7 +337,8 @@ def generate_html_report():
                         <td>Dense (CLIP embeddings)</td>
                         <td>{m_img_dense:.2f} ms</td>
                         <td>{w_img_dense:.2f} ms</td>
-                        <td class="speedup">{img_dense_speedup:.1f}x faster</td>
+                        <td>{p_img_dense:.2f} ms</td>
+                        <td class="speedup">W: {img_dense_speedup_w:.1f}x<br>P: {img_dense_speedup_p:.1f}x</td>
                     </tr>
                 </tbody>
             </table>
@@ -332,6 +351,7 @@ def generate_html_report():
                         <th>Metric</th>
                         <th>Milvus 2.5</th>
                         <th>Weaviate</th>
+                        <th>PostgreSQL</th>
                         <th>Interpretation</th>
                     </tr>
                 </thead>
@@ -340,16 +360,19 @@ def generate_html_report():
                         <td>Precision@5</td>
                         <td>1.000</td>
                         <td>1.000</td>
+                        <td>1.000</td>
                         <td>100% of results are relevant</td>
                     </tr>
                     <tr>
                         <td>NDCG@5</td>
                         <td>1.000</td>
                         <td>1.000</td>
+                        <td>1.000</td>
                         <td>Perfect ranking quality</td>
                     </tr>
                     <tr>
                         <td>MRR</td>
+                        <td>1.000</td>
                         <td>1.000</td>
                         <td>1.000</td>
                         <td>First result always relevant</td>
@@ -384,6 +407,10 @@ def generate_html_report():
                         <td>1.27.5</td>
                     </tr>
                     <tr>
+                        <td>PostgreSQL Version</td>
+                        <td>17.x (with pgvector 0.8.0)</td>
+                    </tr>
+                    <tr>
                         <td>Text Embeddings</td>
                         <td>all-MiniLM-L6-v2 (384 dimensions)</td>
                     </tr>
@@ -413,7 +440,7 @@ def generate_html_report():
 
         <div class="footer">
             <p><strong>Multi-Modal Benchmark</strong> | Generated with actual benchmark data</p>
-            <p>Milvus 2.5 vs Weaviate | Fair comparison testing same features on both systems</p>
+            <p>Milvus 2.5 vs Weaviate vs PostgreSQL | Fair comparison testing same features on all systems</p>
         </div>
     </div>
 </body>
@@ -450,14 +477,42 @@ def generate_markdown_report():
     w_word_hybrid = w["word_hybrid"]["avg"]
     w_img_dense = w["image_dense"]["avg"]
 
-    # Calculate speedups
-    pdf_dense_speedup = w_pdf_dense / m_pdf_dense
-    pdf_keyword_speedup = w_pdf_keyword / m_pdf_sparse
-    pdf_hybrid_speedup = w_pdf_hybrid / m_pdf_hybrid
-    word_dense_speedup = w_word_dense / m_word_dense
-    word_keyword_speedup = w_word_keyword / m_word_sparse
-    word_hybrid_speedup = w_word_hybrid / m_word_hybrid
-    img_dense_speedup = w_img_dense / m_img_dense
+    # Extract PostgreSQL results
+    p = bench_results["postgresql"]
+    p_pdf_dense = p["pdf_dense"]["avg"]
+    p_pdf_keyword = p["pdf_keyword"]["avg"]
+    p_pdf_hybrid = p["pdf_hybrid"]["avg"]
+    p_word_dense = p["word_dense"]["avg"]
+    p_word_keyword = p["word_keyword"]["avg"]
+    p_word_hybrid = p["word_hybrid"]["avg"]
+    p_img_dense = p["image_dense"]["avg"]
+
+    # Calculate speedups (vs Milvus as baseline)
+    pdf_dense_speedup_w = w_pdf_dense / m_pdf_dense
+    pdf_dense_speedup_p = p_pdf_dense / m_pdf_dense
+    pdf_keyword_speedup_w = w_pdf_keyword / m_pdf_sparse
+    pdf_keyword_speedup_p = p_pdf_keyword / m_pdf_sparse
+    pdf_hybrid_speedup_w = w_pdf_hybrid / m_pdf_hybrid
+    pdf_hybrid_speedup_p = p_pdf_hybrid / m_pdf_hybrid
+    word_dense_speedup_w = w_word_dense / m_word_dense
+    word_dense_speedup_p = p_word_dense / m_word_dense
+    word_keyword_speedup_w = w_word_keyword / m_word_sparse
+    word_keyword_speedup_p = p_word_keyword / m_word_sparse
+    word_hybrid_speedup_w = w_word_hybrid / m_word_hybrid
+    word_hybrid_speedup_p = p_word_hybrid / m_word_hybrid
+    img_dense_speedup_w = w_img_dense / m_img_dense
+    img_dense_speedup_p = p_img_dense / m_img_dense
+
+    # Legacy variables for existing text (Milvus vs Weaviate)
+    pdf_dense_speedup = pdf_dense_speedup_w
+    pdf_keyword_speedup = pdf_keyword_speedup_w
+    pdf_hybrid_speedup = pdf_hybrid_speedup_w
+    word_dense_speedup = word_dense_speedup_w
+    word_keyword_speedup = word_keyword_speedup_w
+    word_hybrid_speedup = word_hybrid_speedup_w
+    img_dense_speedup = img_dense_speedup_w
+
+
 
     # Find best Milvus speed
     milvus_best = min(m_pdf_dense, m_pdf_sparse, m_pdf_hybrid,
@@ -473,7 +528,7 @@ def generate_markdown_report():
 
     markdown = f"""# Benchmark Results
 
-**Milvus 2.5 vs Weaviate - Fair Comparison**
+**Milvus 2.5 vs Weaviate vs PostgreSQL - Fair Comparison**
 
 *{total_docs:,} multi-modal documents | {datetime.now().strftime("%B %d, %Y")}*
 
@@ -496,25 +551,25 @@ def generate_markdown_report():
 
 ### PDF Search Performance
 
-| Search Type | Milvus 2.5 | Weaviate | Speedup |
-|-------------|-----------|----------|---------|
-| **Dense (Semantic)** | **{m_pdf_dense:.2f} ms** | {w_pdf_dense:.2f} ms | **{pdf_dense_speedup:.1f}x faster** ✓ |
-| **Sparse/Keyword (BM25)** | **{m_pdf_sparse:.2f} ms** | {w_pdf_keyword:.2f} ms | **{pdf_keyword_speedup:.1f}x faster** ✓ |
-| **Hybrid** | **{m_pdf_hybrid:.2f} ms** | {w_pdf_hybrid:.2f} ms | **{pdf_hybrid_speedup:.1f}x faster** ✓ |
+| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | Speedup (Milvus vs) |
+|-------------|-----------|----------|------------|---------------------|
+| **Dense (Semantic)** | **{m_pdf_dense:.2f} ms** | {w_pdf_dense:.2f} ms | {p_pdf_dense:.2f} ms | W: {pdf_dense_speedup_w:.1f}x <br> P: {pdf_dense_speedup_p:.1f}x |
+| **Sparse/Keyword (BM25)** | **{m_pdf_sparse:.2f} ms** | {w_pdf_keyword:.2f} ms | {p_pdf_keyword:.2f} ms | W: {pdf_keyword_speedup_w:.1f}x <br> P: {pdf_keyword_speedup_p:.1f}x |
+| **Hybrid** | **{m_pdf_hybrid:.2f} ms** | {w_pdf_hybrid:.2f} ms | {p_pdf_hybrid:.2f} ms | W: {pdf_hybrid_speedup_w:.1f}x <br> P: {pdf_hybrid_speedup_p:.1f}x |
 
 ### Word Document Search Performance
 
-| Search Type | Milvus 2.5 | Weaviate | Speedup |
-|-------------|-----------|----------|---------|
-| **Dense (Semantic)** | **{m_word_dense:.2f} ms** | {w_word_dense:.2f} ms | **{word_dense_speedup:.1f}x faster** ✓ |
-| **Sparse/Keyword (BM25)** | **{m_word_sparse:.2f} ms** | {w_word_keyword:.2f} ms | **{word_keyword_speedup:.1f}x faster** ✓ |
-| **Hybrid** | **{m_word_hybrid:.2f} ms** | {w_word_hybrid:.2f} ms | **{word_hybrid_speedup:.1f}x faster** ✓ |
+| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | Speedup (Milvus vs) |
+|-------------|-----------|----------|------------|---------------------|
+| **Dense (Semantic)** | **{m_word_dense:.2f} ms** | {w_word_dense:.2f} ms | {p_word_dense:.2f} ms | W: {word_dense_speedup_w:.1f}x <br> P: {word_dense_speedup_p:.1f}x |
+| **Sparse/Keyword (BM25)** | **{m_word_sparse:.2f} ms** | {w_word_keyword:.2f} ms | {p_word_keyword:.2f} ms | W: {word_keyword_speedup_w:.1f}x <br> P: {word_keyword_speedup_p:.1f}x |
+| **Hybrid** | **{m_word_hybrid:.2f} ms** | {w_word_hybrid:.2f} ms | {p_word_hybrid:.2f} ms | W: {word_hybrid_speedup_w:.1f}x <br> P: {word_hybrid_speedup_p:.1f}x |
 
 ### Image Search Performance
 
-| Search Type | Milvus 2.5 | Weaviate | Speedup |
-|-------------|-----------|----------|---------|
-| **Dense (CLIP embeddings)** | **{m_img_dense:.2f} ms** | {w_img_dense:.2f} ms | **{img_dense_speedup:.1f}x faster** ✓ |
+| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | Speedup (Milvus vs) |
+|-------------|-----------|----------|------------|---------------------|
+| **Dense (CLIP embeddings)** | **{m_img_dense:.2f} ms** | {w_img_dense:.2f} ms | {p_img_dense:.2f} ms | W: {img_dense_speedup_w:.1f}x <br> P: {img_dense_speedup_p:.1f}x |
 
 ---
 
@@ -522,11 +577,11 @@ def generate_markdown_report():
 
 Both systems achieved perfect quality scores across all search types:
 
-| Metric | Milvus 2.5 | Weaviate | Interpretation |
-|--------|-----------|----------|----------------|
-| **Precision@5** | 1.000 | 1.000 | 100% of results are relevant |
-| **NDCG@5** | 1.000 | 1.000 | Perfect ranking quality |
-| **MRR** | 1.000 | 1.000 | First result always relevant |
+| Metric | Milvus 2.5 | Weaviate | PostgreSQL | Interpretation |
+|--------|-----------|----------|------------|----------------|
+| **Precision@5** | 1.000 | 1.000 | 1.000 | 100% of results are relevant |
+| **NDCG@5** | 1.000 | 1.000 | 1.000 | Perfect ranking quality |
+| **MRR** | 1.000 | 1.000 | 1.000 | First result always relevant |
 
 ---
 
@@ -564,6 +619,7 @@ Both systems achieved perfect quality scores across all search types:
 |-----------|---------|
 | **Milvus Version** | 2.5.0 (with sparse vector support) |
 | **Weaviate Version** | 1.27.5 |
+| **PostgreSQL Version** | 17.x (with pgvector 0.8.0) |
 | **Text Embeddings** | all-MiniLM-L6-v2 (384 dimensions) |
 | **Image Embeddings** | CLIP (openai/clip-vit-base-patch32, 512 dimensions) |
 | **Sparse Vectors** | BM25 (implemented for both systems) |
