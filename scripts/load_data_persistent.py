@@ -4,7 +4,11 @@ Load processed data into databases WITHOUT cleanup - so you can verify it's ther
 """
 
 import json
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import weaviate
 import sys
@@ -13,7 +17,8 @@ from milvus_25_hybrid_client import Milvus25HybridClient
 
 def load_processed_data():
     """Load all processed multi-modal data."""
-    data_dir = Path(__file__).parent / ".." / "data" / "multimodal" / "processed"
+    base_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
+    data_dir = base_dir / "processed"
 
     with open(data_dir / "pdfs_processed.json", "r") as f:
         pdfs = json.load(f)
