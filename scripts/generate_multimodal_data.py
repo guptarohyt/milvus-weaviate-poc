@@ -49,7 +49,7 @@ plt.rcParams['figure.figsize'] = (8, 5)
 
 def load_phase1_data():
     """Load existing Phase 1 data."""
-    data_dir = Path("./data")
+    data_dir = PROJECT_ROOT / "data"
 
     try:
         with open(data_dir / "policies.json") as f:
