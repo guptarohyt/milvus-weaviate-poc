@@ -8,7 +8,18 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
+
+# Helper to get project root (parent of scripts/)
+PROJECT_ROOT = Path(__file__).parent.parent
+
+def get_data_dir():
+    """Get data directory, resolving DATA_OUTPUT_DIR relative to project root."""
+    data_output = os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")
+    if not Path(data_output).is_absolute():
+        return PROJECT_ROOT / data_output
+    return Path(data_output)
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import weaviate
 import sys
@@ -17,7 +28,7 @@ from milvus_25_hybrid_client import Milvus25HybridClient
 
 def load_processed_data():
     """Load all processed multi-modal data."""
-    base_dir = Path(os.getenv("DATA_OUTPUT_DIR", "./data/multimodal"))
+    base_dir = get_data_dir()
     data_dir = base_dir / "processed"
 
     with open(data_dir / "pdfs_processed.json", "r") as f:
