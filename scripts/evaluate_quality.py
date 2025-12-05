@@ -20,6 +20,21 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from collections import defaultdict
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Helper to get project root (parent of scripts/)
+PROJECT_ROOT = Path(__file__).parent.parent
+
+def get_data_dir():
+    """Get data directory, resolving DATA_OUTPUT_DIR relative to project root."""
+    data_output = os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")
+    if not Path(data_output).is_absolute():
+        return PROJECT_ROOT / data_output
+    return Path(data_output)
 
 from milvus_25_hybrid_client import Milvus25HybridClient
 import weaviate
@@ -27,9 +42,7 @@ import weaviate
 
 def load_processed_data():
     """Load all processed multi-modal data."""
-    import os
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = Path(os.path.join(script_dir, "..", "data", "multimodal", "processed"))
+    data_dir = get_data_dir() / "processed"
 
     with open(data_dir / "pdfs_processed.json", "r") as f:
         pdfs = json.load(f)
