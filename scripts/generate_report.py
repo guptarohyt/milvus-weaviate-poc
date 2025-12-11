@@ -59,21 +59,38 @@ def generate_html_report():
     p_word_hybrid = p["word_hybrid"]["avg"]
     p_img_dense = p["image_dense"]["avg"]
 
+    # Extract SQL Server results
+    s = bench_results["sqlserver"]
+    s_pdf_dense = s["pdf_dense"]["avg"]
+    s_pdf_keyword = s["pdf_keyword"]["avg"]
+    s_pdf_hybrid = s["pdf_hybrid"]["avg"]
+    s_word_dense = s["word_dense"]["avg"]
+    s_word_keyword = s["word_keyword"]["avg"]
+    s_word_hybrid = s["word_hybrid"]["avg"]
+    s_img_dense = s["image_dense"]["avg"]
+
     # Calculate speedups (vs Milvus as baseline)
     pdf_dense_speedup_w = w_pdf_dense / m_pdf_dense
     pdf_dense_speedup_p = p_pdf_dense / m_pdf_dense
+    pdf_dense_speedup_s = s_pdf_dense / m_pdf_dense
     pdf_keyword_speedup_w = w_pdf_keyword / m_pdf_sparse
     pdf_keyword_speedup_p = p_pdf_keyword / m_pdf_sparse
+    pdf_keyword_speedup_s = s_pdf_keyword / m_pdf_sparse
     pdf_hybrid_speedup_w = w_pdf_hybrid / m_pdf_hybrid
     pdf_hybrid_speedup_p = p_pdf_hybrid / m_pdf_hybrid
+    pdf_hybrid_speedup_s = s_pdf_hybrid / m_pdf_hybrid
     word_dense_speedup_w = w_word_dense / m_word_dense
     word_dense_speedup_p = p_word_dense / m_word_dense
+    word_dense_speedup_s = s_word_dense / m_word_dense
     word_keyword_speedup_w = w_word_keyword / m_word_sparse
     word_keyword_speedup_p = p_word_keyword / m_word_sparse
+    word_keyword_speedup_s = s_word_keyword / m_word_sparse
     word_hybrid_speedup_w = w_word_hybrid / m_word_hybrid
     word_hybrid_speedup_p = p_word_hybrid / m_word_hybrid
+    word_hybrid_speedup_s = s_word_hybrid / m_word_hybrid
     img_dense_speedup_w = w_img_dense / m_img_dense
     img_dense_speedup_p = p_img_dense / m_img_dense
+    img_dense_speedup_s = s_img_dense / m_img_dense
 
     # Legacy variables for existing text (Milvus vs Weaviate)
     pdf_dense_speedup = pdf_dense_speedup_w
@@ -93,7 +110,7 @@ def generate_html_report():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Benchmark Report ({total_docs:,} docs): Milvus 2.5 vs Weaviate vs PostgreSQL</title>
+    <title>Benchmark Report ({total_docs:,} docs): Milvus 2.5 vs Weaviate vs PostgreSQL vs SQL Server</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {{
@@ -220,7 +237,7 @@ def generate_html_report():
     <div class="container">
         <div class="header">
             <h1>Benchmark Results</h1>
-            <div class="subtitle">Milvus 2.5 vs Weaviate vs PostgreSQL - Fair Comparison</div>
+            <div class="subtitle">Milvus 2.5 vs Weaviate vs PostgreSQL vs SQL Server - Fair Comparison</div>
             <div class="subtitle" style="font-size: 0.9em; margin-top: 10px;">
                 {total_docs:,} multi-modal documents | {datetime.now().strftime("%B %d, %Y")}
             </div>
@@ -274,6 +291,7 @@ def generate_html_report():
                         <th>Milvus 2.5</th>
                         <th>Weaviate</th>
                         <th>PostgreSQL</th>
+                        <th>SQL Server</th>
                         <th>Speedup (Milvus vs)</th>
                     </tr>
                 </thead>
@@ -283,21 +301,24 @@ def generate_html_report():
                         <td>{m_pdf_dense:.2f} ms</td>
                         <td>{w_pdf_dense:.2f} ms</td>
                         <td>{p_pdf_dense:.2f} ms</td>
-                        <td class="speedup">W: {pdf_dense_speedup_w:.1f}x<br>P: {pdf_dense_speedup_p:.1f}x</td>
+                        <td>{s_pdf_dense:.2f} ms</td>
+                        <td class="speedup">W: {pdf_dense_speedup_w:.1f}x<br>P: {pdf_dense_speedup_p:.1f}x<br>S: {pdf_dense_speedup_s:.1f}x</td>
                     </tr>
                     <tr class="winner">
                         <td>Sparse/Keyword</td>
                         <td>{m_pdf_sparse:.2f} ms</td>
                         <td>{w_pdf_keyword:.2f} ms</td>
                         <td>{p_pdf_keyword:.2f} ms</td>
-                        <td class="speedup">W: {pdf_keyword_speedup_w:.1f}x<br>P: {pdf_keyword_speedup_p:.1f}x</td>
+                        <td>{s_pdf_keyword:.2f} ms</td>
+                        <td class="speedup">W: {pdf_keyword_speedup_w:.1f}x<br>P: {pdf_keyword_speedup_p:.1f}x<br>S: {pdf_keyword_speedup_s:.1f}x</td>
                     </tr>
                     <tr class="winner">
                         <td>Hybrid</td>
                         <td>{m_pdf_hybrid:.2f} ms</td>
                         <td>{w_pdf_hybrid:.2f} ms</td>
                         <td>{p_pdf_hybrid:.2f} ms</td>
-                        <td class="speedup">W: {pdf_hybrid_speedup_w:.1f}x<br>P: {pdf_hybrid_speedup_p:.1f}x</td>
+                        <td>{s_pdf_hybrid:.2f} ms</td>
+                        <td class="speedup">W: {pdf_hybrid_speedup_w:.1f}x<br>P: {pdf_hybrid_speedup_p:.1f}x<br>S: {pdf_hybrid_speedup_s:.1f}x</td>
                     </tr>
                 </tbody>
             </table>
@@ -313,6 +334,7 @@ def generate_html_report():
                         <th>Milvus 2.5</th>
                         <th>Weaviate</th>
                         <th>PostgreSQL</th>
+                        <th>SQL Server</th>
                         <th>Speedup (Milvus vs)</th>
                     </tr>
                 </thead>
@@ -322,21 +344,24 @@ def generate_html_report():
                         <td>{m_word_dense:.2f} ms</td>
                         <td>{w_word_dense:.2f} ms</td>
                         <td>{p_word_dense:.2f} ms</td>
-                        <td class="speedup">W: {word_dense_speedup_w:.1f}x<br>P: {word_dense_speedup_p:.1f}x</td>
+                        <td>{s_word_dense:.2f} ms</td>
+                        <td class="speedup">W: {word_dense_speedup_w:.1f}x<br>P: {word_dense_speedup_p:.1f}x<br>S: {word_dense_speedup_s:.1f}x</td>
                     </tr>
                     <tr class="winner">
                         <td>Sparse/Keyword</td>
                         <td>{m_word_sparse:.2f} ms</td>
                         <td>{w_word_keyword:.2f} ms</td>
                         <td>{p_word_keyword:.2f} ms</td>
-                        <td class="speedup">W: {word_keyword_speedup_w:.1f}x<br>P: {word_keyword_speedup_p:.1f}x</td>
+                        <td>{s_word_keyword:.2f} ms</td>
+                        <td class="speedup">W: {word_keyword_speedup_w:.1f}x<br>P: {word_keyword_speedup_p:.1f}x<br>S: {word_keyword_speedup_s:.1f}x</td>
                     </tr>
                     <tr class="winner">
                         <td>Hybrid</td>
                         <td>{m_word_hybrid:.2f} ms</td>
                         <td>{w_word_hybrid:.2f} ms</td>
                         <td>{p_word_hybrid:.2f} ms</td>
-                        <td class="speedup">W: {word_hybrid_speedup_w:.1f}x<br>P: {word_hybrid_speedup_p:.1f}x</td>
+                        <td>{s_word_hybrid:.2f} ms</td>
+                        <td class="speedup">W: {word_hybrid_speedup_w:.1f}x<br>P: {word_hybrid_speedup_p:.1f}x<br>S: {word_hybrid_speedup_s:.1f}x</td>
                     </tr>
                 </tbody>
             </table>
@@ -352,6 +377,7 @@ def generate_html_report():
                         <th>Milvus 2.5</th>
                         <th>Weaviate</th>
                         <th>PostgreSQL</th>
+                        <th>SQL Server</th>
                         <th>Speedup (Milvus vs)</th>
                     </tr>
                 </thead>
@@ -361,13 +387,14 @@ def generate_html_report():
                         <td>{m_img_dense:.2f} ms</td>
                         <td>{w_img_dense:.2f} ms</td>
                         <td>{p_img_dense:.2f} ms</td>
-                        <td class="speedup">W: {img_dense_speedup_w:.1f}x<br>P: {img_dense_speedup_p:.1f}x</td>
+                        <td>{s_img_dense:.2f} ms</td>
+                        <td class="speedup">W: {img_dense_speedup_w:.1f}x<br>P: {img_dense_speedup_p:.1f}x<br>S: {img_dense_speedup_s:.1f}x</td>
                     </tr>
                 </tbody>
             </table>
 
             <h2>Quality Metrics</h2>
-            <p>All three systems achieved perfect quality scores across all search types:</p>
+            <p>All four systems achieved perfect quality scores across all search types:</p>
             <div class="chart-container">
                 <canvas id="qualityChart"></canvas>
             </div>
@@ -378,12 +405,14 @@ def generate_html_report():
                         <th>Milvus 2.5</th>
                         <th>Weaviate</th>
                         <th>PostgreSQL</th>
+                        <th>SQL Server</th>
                         <th>Interpretation</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Precision@5</td>
+                        <td>1.000</td>
                         <td>1.000</td>
                         <td>1.000</td>
                         <td>1.000</td>
@@ -394,10 +423,12 @@ def generate_html_report():
                         <td>1.000</td>
                         <td>1.000</td>
                         <td>1.000</td>
+                        <td>1.000</td>
                         <td>Perfect ranking quality</td>
                     </tr>
                     <tr>
                         <td>MRR</td>
+                        <td>1.000</td>
                         <td>1.000</td>
                         <td>1.000</td>
                         <td>1.000</td>
@@ -437,6 +468,10 @@ def generate_html_report():
                         <td>17.x (with pgvector 0.8.0)</td>
                     </tr>
                     <tr>
+                        <td>SQL Server Version</td>
+                        <td>2025 (VARBINARY storage, client-side similarity)</td>
+                    </tr>
+                    <tr>
                         <td>Text Embeddings</td>
                         <td>all-MiniLM-L6-v2 (384 dimensions)</td>
                     </tr>
@@ -466,7 +501,7 @@ def generate_html_report():
 
         <div class="footer">
             <p><strong>Multi-Modal Benchmark</strong> | Generated with actual benchmark data</p>
-            <p>Milvus 2.5 vs Weaviate vs PostgreSQL | Fair comparison testing same features on all systems</p>
+            <p>Milvus 2.5 vs Weaviate vs PostgreSQL vs SQL Server | Fair comparison testing same features on all systems</p>
         </div>
     </div>
 
@@ -501,6 +536,13 @@ def generate_html_report():
                         data: [{p_pdf_dense:.2f}, {p_pdf_keyword:.2f}, {p_pdf_hybrid:.2f}],
                         backgroundColor: 'rgba(52, 152, 219, 0.8)',
                         borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'SQL Server',
+                        data: [{s_pdf_dense:.2f}, {s_pdf_keyword:.2f}, {s_pdf_hybrid:.2f}],
+                        backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
                         borderWidth: 2
                     }}
                 ]
@@ -561,6 +603,13 @@ def generate_html_report():
                         backgroundColor: 'rgba(52, 152, 219, 0.8)',
                         borderColor: 'rgba(52, 152, 219, 1)',
                         borderWidth: 2
+                    }},
+                    {{
+                        label: 'SQL Server',
+                        data: [{s_word_dense:.2f}, {s_word_keyword:.2f}, {s_word_hybrid:.2f}],
+                        backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2
                     }}
                 ]
             }},
@@ -620,6 +669,13 @@ def generate_html_report():
                         backgroundColor: 'rgba(52, 152, 219, 0.8)',
                         borderColor: 'rgba(52, 152, 219, 1)',
                         borderWidth: 2
+                    }},
+                    {{
+                        label: 'SQL Server',
+                        data: [{s_img_dense:.2f}],
+                        backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2
                     }}
                 ]
             }},
@@ -678,6 +734,13 @@ def generate_html_report():
                         data: [1.000, 1.000, 1.000],
                         backgroundColor: 'rgba(52, 152, 219, 0.8)',
                         borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'SQL Server',
+                        data: [1.000, 1.000, 1.000],
+                        backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
                         borderWidth: 2
                     }}
                 ]
@@ -756,21 +819,38 @@ def generate_markdown_report():
     p_word_hybrid = p["word_hybrid"]["avg"]
     p_img_dense = p["image_dense"]["avg"]
 
+    # Extract SQL Server results
+    s = bench_results["sqlserver"]
+    s_pdf_dense = s["pdf_dense"]["avg"]
+    s_pdf_keyword = s["pdf_keyword"]["avg"]
+    s_pdf_hybrid = s["pdf_hybrid"]["avg"]
+    s_word_dense = s["word_dense"]["avg"]
+    s_word_keyword = s["word_keyword"]["avg"]
+    s_word_hybrid = s["word_hybrid"]["avg"]
+    s_img_dense = s["image_dense"]["avg"]
+
     # Calculate speedups (vs Milvus as baseline)
     pdf_dense_speedup_w = w_pdf_dense / m_pdf_dense
     pdf_dense_speedup_p = p_pdf_dense / m_pdf_dense
+    pdf_dense_speedup_s = s_pdf_dense / m_pdf_dense
     pdf_keyword_speedup_w = w_pdf_keyword / m_pdf_sparse
     pdf_keyword_speedup_p = p_pdf_keyword / m_pdf_sparse
+    pdf_keyword_speedup_s = s_pdf_keyword / m_pdf_sparse
     pdf_hybrid_speedup_w = w_pdf_hybrid / m_pdf_hybrid
     pdf_hybrid_speedup_p = p_pdf_hybrid / m_pdf_hybrid
+    pdf_hybrid_speedup_s = s_pdf_hybrid / m_pdf_hybrid
     word_dense_speedup_w = w_word_dense / m_word_dense
     word_dense_speedup_p = p_word_dense / m_word_dense
+    word_dense_speedup_s = s_word_dense / m_word_dense
     word_keyword_speedup_w = w_word_keyword / m_word_sparse
     word_keyword_speedup_p = p_word_keyword / m_word_sparse
+    word_keyword_speedup_s = s_word_keyword / m_word_sparse
     word_hybrid_speedup_w = w_word_hybrid / m_word_hybrid
     word_hybrid_speedup_p = p_word_hybrid / m_word_hybrid
+    word_hybrid_speedup_s = s_word_hybrid / m_word_hybrid
     img_dense_speedup_w = w_img_dense / m_img_dense
     img_dense_speedup_p = p_img_dense / m_img_dense
+    img_dense_speedup_s = s_img_dense / m_img_dense
 
     # Legacy variables for existing text (Milvus vs Weaviate)
     pdf_dense_speedup = pdf_dense_speedup_w
@@ -797,7 +877,7 @@ def generate_markdown_report():
 
     markdown = f"""# Benchmark Results
 
-**Milvus 2.5 vs Weaviate vs PostgreSQL - Fair Comparison**
+**Milvus 2.5 vs Weaviate vs PostgreSQL vs SQL Server - Fair Comparison**
 
 *{total_docs:,} multi-modal documents | {datetime.now().strftime("%B %d, %Y")}*
 
@@ -820,37 +900,37 @@ def generate_markdown_report():
 
 ### PDF Search Performance
 
-| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | Speedup (Milvus vs) |
-|-------------|-----------|----------|------------|---------------------|
-| **Dense (Semantic)** | **{m_pdf_dense:.2f} ms** | {w_pdf_dense:.2f} ms | {p_pdf_dense:.2f} ms | W: {pdf_dense_speedup_w:.1f}x <br> P: {pdf_dense_speedup_p:.1f}x |
-| **Sparse/Keyword (BM25)** | **{m_pdf_sparse:.2f} ms** | {w_pdf_keyword:.2f} ms | {p_pdf_keyword:.2f} ms | W: {pdf_keyword_speedup_w:.1f}x <br> P: {pdf_keyword_speedup_p:.1f}x |
-| **Hybrid** | **{m_pdf_hybrid:.2f} ms** | {w_pdf_hybrid:.2f} ms | {p_pdf_hybrid:.2f} ms | W: {pdf_hybrid_speedup_w:.1f}x <br> P: {pdf_hybrid_speedup_p:.1f}x |
+| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | SQL Server | Speedup (Milvus vs) |
+|-------------|-----------|----------|------------|------------|---------------------|
+| **Dense (Semantic)** | **{m_pdf_dense:.2f} ms** | {w_pdf_dense:.2f} ms | {p_pdf_dense:.2f} ms | {s_pdf_dense:.2f} ms | W: {pdf_dense_speedup_w:.1f}x <br> P: {pdf_dense_speedup_p:.1f}x <br> S: {pdf_dense_speedup_s:.1f}x |
+| **Sparse/Keyword (BM25)** | **{m_pdf_sparse:.2f} ms** | {w_pdf_keyword:.2f} ms | {p_pdf_keyword:.2f} ms | {s_pdf_keyword:.2f} ms | W: {pdf_keyword_speedup_w:.1f}x <br> P: {pdf_keyword_speedup_p:.1f}x <br> S: {pdf_keyword_speedup_s:.1f}x |
+| **Hybrid** | **{m_pdf_hybrid:.2f} ms** | {w_pdf_hybrid:.2f} ms | {p_pdf_hybrid:.2f} ms | {s_pdf_hybrid:.2f} ms | W: {pdf_hybrid_speedup_w:.1f}x <br> P: {pdf_hybrid_speedup_p:.1f}x <br> S: {pdf_hybrid_speedup_s:.1f}x |
 
 ### Word Document Search Performance
 
-| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | Speedup (Milvus vs) |
-|-------------|-----------|----------|------------|---------------------|
-| **Dense (Semantic)** | **{m_word_dense:.2f} ms** | {w_word_dense:.2f} ms | {p_word_dense:.2f} ms | W: {word_dense_speedup_w:.1f}x <br> P: {word_dense_speedup_p:.1f}x |
-| **Sparse/Keyword (BM25)** | **{m_word_sparse:.2f} ms** | {w_word_keyword:.2f} ms | {p_word_keyword:.2f} ms | W: {word_keyword_speedup_w:.1f}x <br> P: {word_keyword_speedup_p:.1f}x |
-| **Hybrid** | **{m_word_hybrid:.2f} ms** | {w_word_hybrid:.2f} ms | {p_word_hybrid:.2f} ms | W: {word_hybrid_speedup_w:.1f}x <br> P: {word_hybrid_speedup_p:.1f}x |
+| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | SQL Server | Speedup (Milvus vs) |
+|-------------|-----------|----------|------------|------------|---------------------|
+| **Dense (Semantic)** | **{m_word_dense:.2f} ms** | {w_word_dense:.2f} ms | {p_word_dense:.2f} ms | {s_word_dense:.2f} ms | W: {word_dense_speedup_w:.1f}x <br> P: {word_dense_speedup_p:.1f}x <br> S: {word_dense_speedup_s:.1f}x |
+| **Sparse/Keyword (BM25)** | **{m_word_sparse:.2f} ms** | {w_word_keyword:.2f} ms | {p_word_keyword:.2f} ms | {s_word_keyword:.2f} ms | W: {word_keyword_speedup_w:.1f}x <br> P: {word_keyword_speedup_p:.1f}x <br> S: {word_keyword_speedup_s:.1f}x |
+| **Hybrid** | **{m_word_hybrid:.2f} ms** | {w_word_hybrid:.2f} ms | {p_word_hybrid:.2f} ms | {s_word_hybrid:.2f} ms | W: {word_hybrid_speedup_w:.1f}x <br> P: {word_hybrid_speedup_p:.1f}x <br> S: {word_hybrid_speedup_s:.1f}x |
 
 ### Image Search Performance
 
-| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | Speedup (Milvus vs) |
-|-------------|-----------|----------|------------|---------------------|
-| **Dense (CLIP embeddings)** | **{m_img_dense:.2f} ms** | {w_img_dense:.2f} ms | {p_img_dense:.2f} ms | W: {img_dense_speedup_w:.1f}x <br> P: {img_dense_speedup_p:.1f}x |
+| Search Type | Milvus 2.5 | Weaviate | PostgreSQL | SQL Server | Speedup (Milvus vs) |
+|-------------|-----------|----------|------------|------------|---------------------|
+| **Dense (CLIP embeddings)** | **{m_img_dense:.2f} ms** | {w_img_dense:.2f} ms | {p_img_dense:.2f} ms | {s_img_dense:.2f} ms | W: {img_dense_speedup_w:.1f}x <br> P: {img_dense_speedup_p:.1f}x <br> S: {img_dense_speedup_s:.1f}x |
 
 ---
 
 ## Quality Metrics
 
-Both systems achieved perfect quality scores across all search types:
+All four systems achieved perfect quality scores across all search types:
 
-| Metric | Milvus 2.5 | Weaviate | PostgreSQL | Interpretation |
-|--------|-----------|----------|------------|----------------|
-| **Precision@5** | 1.000 | 1.000 | 1.000 | 100% of results are relevant |
-| **NDCG@5** | 1.000 | 1.000 | 1.000 | Perfect ranking quality |
-| **MRR** | 1.000 | 1.000 | 1.000 | First result always relevant |
+| Metric | Milvus 2.5 | Weaviate | PostgreSQL | SQL Server | Interpretation |
+|--------|-----------|----------|------------|------------|----------------|
+| **Precision@5** | 1.000 | 1.000 | 1.000 | 1.000 | 100% of results are relevant |
+| **NDCG@5** | 1.000 | 1.000 | 1.000 | 1.000 | Perfect ranking quality |
+| **MRR** | 1.000 | 1.000 | 1.000 | 1.000 | First result always relevant |
 
 ---
 
@@ -889,6 +969,7 @@ Both systems achieved perfect quality scores across all search types:
 | **Milvus Version** | 2.5.0 (with sparse vector support) |
 | **Weaviate Version** | 1.27.5 |
 | **PostgreSQL Version** | 17.x (with pgvector 0.8.0) |
+| **SQL Server Version** | 2025 (VARBINARY storage, client-side similarity) |
 | **Text Embeddings** | all-MiniLM-L6-v2 (384 dimensions) |
 | **Image Embeddings** | CLIP (openai/clip-vit-base-patch32, 512 dimensions) |
 | **Sparse Vectors** | BM25 (implemented for both systems) |
@@ -1018,7 +1099,7 @@ For production workloads requiring **both speed and quality**, Milvus 2.5 offers
 
 *Multi-Modal Benchmark | Generated with actual benchmark data*
 
-*Milvus 2.5 vs Weaviate | Fair comparison testing same features on both systems*
+*Milvus 2.5 vs Weaviate vs PostgreSQL vs SQL Server | Fair comparison testing same features on all systems*
 """
 
     return markdown

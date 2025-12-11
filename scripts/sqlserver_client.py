@@ -2,10 +2,13 @@
 """
 SQL Server Vector Client for Vector Search Benchmarking
 
-This client implements vector search capabilities using SQL Server 2022:
-- Dense vector search (cosine similarity with VARBINARY storage)
-- Keyword search (full-text search with CONTAINS)
+This client implements vector search capabilities using SQL Server 2025:
+- Dense vector search (VARBINARY storage with manual cosine similarity)
+- Keyword search (LIKE-based fallback)
 - Hybrid search (RRF fusion of dense + keyword)
+
+Note: Native VECTOR type support is not yet available in SQL Server 2025.
+      Using VARBINARY storage with client-side cosine similarity calculation.
 
 Author: SQL Server Integration
 Date: 2025-12-11
@@ -20,14 +23,13 @@ import struct
 
 class SQLServerVectorClient:
     """
-    SQL Server 2022 client for vector similarity search.
+    SQL Server 2025 client for vector similarity search.
 
     Features:
-    - Dense vector search using cosine similarity (custom implementation)
-    - Full-text keyword search using CONTAINS
+    - Dense vector search using VARBINARY storage with manual cosine similarity
+    - LIKE-based keyword search (fallback)
     - Hybrid search using Reciprocal Rank Fusion (RRF)
-    - Vector storage using VARBINARY(MAX)
-    - Full-text catalog and index support
+    - Client-side vector operations (native VECTOR type not yet available)
     """
 
     def __init__(self, server: str = "localhost", port: int = 1433,
@@ -112,7 +114,7 @@ class SQLServerVectorClient:
 
     def create_table(self, table_name: str, vector_dim: int):
         """
-        Create a table with vector column (VARBINARY) and full-text support.
+        Create a table with VARBINARY column for vector storage.
 
         Args:
             table_name: Name of the table
@@ -127,6 +129,8 @@ class SQLServerVectorClient:
         """)
 
         # Create table with VARBINARY for vector storage
+        # Each float32 is 4 bytes, so vector_dim * 4 bytes needed
+        max_bytes = vector_dim * 4
         cursor.execute(f"""
             CREATE TABLE {table_name} (
                 id INT IDENTITY(1,1) PRIMARY KEY,
@@ -134,43 +138,25 @@ class SQLServerVectorClient:
                 text NVARCHAR(MAX),
                 policy_id NVARCHAR(100),
                 policy_type NVARCHAR(50),
-                embedding VARBINARY(MAX),
-                vector_dim INT
+                embedding VARBINARY({max_bytes}) NOT NULL
             );
         """)
 
         self.conn.commit()
         cursor.close()
-        print(f"✓ Created table '{table_name}' with VARBINARY vector storage (dim={vector_dim})")
+        print(f"✓ Created table '{table_name}' with VARBINARY vector storage ({vector_dim} dimensions)")
 
     def create_fulltext_index(self, table_name: str):
         """
         Create full-text catalog and index for keyword search.
 
+        Note: Full-Text Search is not available in basic SQL Server Docker images.
+        We'll skip this and use LIKE-based search as a fallback.
+
         Args:
             table_name: Name of the table
         """
-        cursor = self.conn.cursor()
-
-        # Create full-text catalog if not exists
-        catalog_name = f"{table_name}_catalog"
-        cursor.execute(f"""
-            IF NOT EXISTS (SELECT * FROM sys.fulltext_catalogs WHERE name = '{catalog_name}')
-            BEGIN
-                CREATE FULLTEXT CATALOG {catalog_name};
-            END
-        """)
-
-        # Create full-text index on text column
-        cursor.execute(f"""
-            CREATE FULLTEXT INDEX ON {table_name}(text)
-            KEY INDEX PK__{table_name}__*
-            ON {catalog_name};
-        """)
-
-        self.conn.commit()
-        cursor.close()
-        print(f"✓ Created full-text index for '{table_name}'")
+        print(f"⚠ Full-Text Search not available in SQL Server container, using LIKE-based keyword search for '{table_name}'")
 
     def insert_documents(self, table_name: str, documents: List[Dict[str, Any]],
                         embeddings: List[List[float]]):
@@ -196,29 +182,27 @@ class SQLServerVectorClient:
 
             # Prepare batch insert
             for doc, emb in zip(batch_docs, batch_embeddings):
-                # Convert numpy array to bytes
-                if isinstance(emb, np.ndarray):
-                    emb_list = emb.tolist()
-                else:
-                    emb_list = emb
+                # Convert to numpy array if needed
+                if not isinstance(emb, np.ndarray):
+                    emb = np.array(emb, dtype=np.float32)
+                elif emb.dtype != np.float32:
+                    emb = emb.astype(np.float32)
 
-                # Store as binary (float32 for efficiency)
-                emb_array = np.array(emb_list, dtype=np.float32)
-                emb_bytes = emb_array.tobytes()
+                # Convert to bytes for VARBINARY storage
+                vector_bytes = emb.tobytes()
 
                 text = doc.get("text", "")
 
                 cursor.execute(f"""
                     INSERT INTO {table_name}
-                    (filename, text, policy_id, policy_type, embedding, vector_dim)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (filename, text, policy_id, policy_type, embedding)
+                    VALUES (?, ?, ?, ?, ?)
                 """, (
                     doc.get("filename", ""),
                     text,
                     doc.get("policy_id", ""),
                     doc.get("policy_type", ""),
-                    emb_bytes,
-                    len(emb_list)
+                    vector_bytes
                 ))
 
             self.conn.commit()
@@ -246,10 +230,7 @@ class SQLServerVectorClient:
     def dense_search(self, table_name: str, query_vector: List[float],
                     limit: int = 5) -> Tuple[List[Dict[str, Any]], float]:
         """
-        Dense vector search using cosine similarity.
-
-        Note: SQL Server 2022 doesn't have native vector distance functions,
-        so we fetch all vectors and compute similarity in Python.
+        Dense vector search using VARBINARY storage with client-side cosine similarity.
 
         Args:
             table_name: Name of the table
@@ -261,10 +242,15 @@ class SQLServerVectorClient:
         """
         start_time = time.time()
 
+        # Convert query vector to numpy array
+        if not isinstance(query_vector, np.ndarray):
+            query_vector = np.array(query_vector, dtype=np.float32)
+        elif query_vector.dtype != np.float32:
+            query_vector = query_vector.astype(np.float32)
+
         cursor = self.conn.cursor()
 
-        # Fetch all documents (for small datasets this is acceptable)
-        # For large datasets, consider adding approximate indexing
+        # Fetch all embeddings and metadata
         cursor.execute(f"""
             SELECT id, filename, text, policy_id, policy_type, embedding
             FROM {table_name}
@@ -273,16 +259,12 @@ class SQLServerVectorClient:
         rows = cursor.fetchall()
         cursor.close()
 
-        # Convert query to numpy
-        query_vec = np.array(query_vector, dtype=np.float32)
-
-        # Calculate similarities
-        results_with_scores = []
+        # Calculate cosine similarity for each document
+        similarities = []
         for row in rows:
-            doc_vec = self._bytes_to_vector(row[5])
-            similarity = self._cosine_similarity(query_vec, doc_vec)
-
-            results_with_scores.append({
+            doc_vector = self._bytes_to_vector(row[5])
+            similarity = self._cosine_similarity(query_vector, doc_vector)
+            similarities.append({
                 "id": row[0],
                 "filename": row[1],
                 "text": row[2],
@@ -291,9 +273,9 @@ class SQLServerVectorClient:
                 "similarity": float(similarity)
             })
 
-        # Sort by similarity (descending) and take top K
-        results_with_scores.sort(key=lambda x: x["similarity"], reverse=True)
-        results = results_with_scores[:limit]
+        # Sort by similarity and return top K
+        similarities.sort(key=lambda x: x["similarity"], reverse=True)
+        results = similarities[:limit]
 
         elapsed = (time.time() - start_time) * 1000  # ms
 
@@ -302,7 +284,7 @@ class SQLServerVectorClient:
     def keyword_search(self, table_name: str, query_text: str,
                       limit: int = 5) -> Tuple[List[Dict[str, Any]], float]:
         """
-        Keyword search using SQL Server full-text search.
+        Keyword search using basic LIKE matching (fallback since FTS not available).
 
         Args:
             table_name: Name of the table
@@ -316,17 +298,23 @@ class SQLServerVectorClient:
 
         cursor = self.conn.cursor()
 
-        # Use FREETEXT for natural language queries
-        # For exact phrase matching, use CONTAINS instead
+        # Simple keyword search using LIKE (not as good as full-text, but works)
+        # Split query into words and search for any of them
+        words = query_text.split()[:5]  # Limit to first 5 words for performance
+
+        if not words:
+            return [], 0.0
+
+        # Build WHERE clause with OR conditions
+        where_conditions = " OR ".join([f"text LIKE ?" for _ in words])
+        like_params = [f"%{word}%" for word in words]
+
         cursor.execute(f"""
             SELECT TOP (?)
-                t.id, t.filename, t.text, t.policy_id, t.policy_type,
-                KEY_TBL.RANK
-            FROM {table_name} AS t
-            INNER JOIN FREETEXTTABLE({table_name}, text, ?) AS KEY_TBL
-                ON t.id = KEY_TBL.[KEY]
-            ORDER BY KEY_TBL.RANK DESC
-        """, (limit, query_text))
+                id, filename, text, policy_id, policy_type
+            FROM {table_name}
+            WHERE {where_conditions}
+        """, (limit, *like_params))
 
         rows = cursor.fetchall()
         cursor.close()
@@ -341,7 +329,7 @@ class SQLServerVectorClient:
                 "text": row[2],
                 "policy_id": row[3],
                 "policy_type": row[4],
-                "rank": float(row[5])
+                "rank": 1.0  # Simple ranking (all results equal)
             })
 
         return results, elapsed
@@ -407,7 +395,8 @@ if __name__ == "__main__":
     print("\nSQL Server Vector Client")
     print("=" * 50)
     print("\nThis client implements:")
-    print("  ✓ Dense vector search (cosine similarity)")
-    print("  ✓ Keyword search (full-text search)")
+    print("  ✓ Dense vector search (VARBINARY storage, client-side cosine similarity)")
+    print("  ✓ Keyword search (LIKE-based search)")
     print("  ✓ Hybrid search (RRF fusion)")
-    print("\nReady to use in benchmarks!\n")
+    print("\nNote: Native VECTOR type not yet available in SQL Server 2025")
+    print("Ready to use in benchmarks!\n")
