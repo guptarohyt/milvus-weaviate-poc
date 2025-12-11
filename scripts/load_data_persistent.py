@@ -25,6 +25,7 @@ import weaviate
 import sys
 sys.path.append(str(Path(__file__).parent))
 from milvus_25_hybrid_client import Milvus25HybridClient
+from postgresql_client import PostgreSQLVectorClient
 
 def load_processed_data():
     """Load all processed multi-modal data."""
@@ -203,18 +204,76 @@ def main():
             batch.add_data_object(properties, "PersistentImages", vector=img["image_embedding"])
     print(f"✓ Inserted {len(images):,} Images")
 
+    # Now load into PostgreSQL
+    print("\n[PostgreSQL] Setting up tables...")
+    pg_client = PostgreSQLVectorClient()
+    pg_client.connect()
+
+    # Create tables
+    print("[PostgreSQL] Creating tables...")
+    pg_client.create_table("persistent_pdfs", vector_dim=384)
+    pg_client.create_table("persistent_word_docs", vector_dim=384)
+    pg_client.create_table("persistent_images", vector_dim=512)
+
+    # Insert PDFs
+    print(f"[PostgreSQL] Inserting {len(pdfs):,} PDFs...")
+    pdf_docs = [{
+        "filename": p["filename"],
+        "text": p["text"],
+        "policy_id": p.get("id", "UNKNOWN"),
+        "policy_type": p.get("type", "pdf")
+    } for p in pdfs]
+    pdf_embeddings = [p["embedding"] for p in pdfs]
+    pg_client.insert_documents("persistent_pdfs", pdf_docs, pdf_embeddings)
+
+    print("[PostgreSQL] Creating PDF HNSW index...")
+    pg_client.create_vector_index("persistent_pdfs", index_type="hnsw")
+    print(f"✓ Inserted {len(pdfs):,} PDFs")
+
+    # Insert Word docs
+    print(f"[PostgreSQL] Inserting {len(word_docs):,} Word docs...")
+    word_doc_objs = [{
+        "filename": w["filename"],
+        "text": w["text"],
+        "policy_id": w.get("id", "UNKNOWN"),
+        "policy_type": w.get("type", "word")
+    } for w in word_docs]
+    word_embeddings = [w["embedding"] for w in word_docs]
+    pg_client.insert_documents("persistent_word_docs", word_doc_objs, word_embeddings)
+
+    print("[PostgreSQL] Creating Word doc HNSW index...")
+    pg_client.create_vector_index("persistent_word_docs", index_type="hnsw")
+    print(f"✓ Inserted {len(word_docs):,} Word docs")
+
+    # Insert Images
+    print(f"[PostgreSQL] Inserting {len(images):,} Images...")
+    image_docs_pg = [{
+        "filename": img["filename"],
+        "text": img.get("description", ""),
+        "policy_id": img.get("claim_id", "UNKNOWN"),
+        "policy_type": img.get("damage_type", "unknown")
+    } for img in images]
+    image_embeddings = [img["image_embedding"] for img in images]
+    pg_client.insert_documents("persistent_images", image_docs_pg, image_embeddings)
+
+    print("[PostgreSQL] Creating Image HNSW index...")
+    pg_client.create_vector_index("persistent_images", index_type="hnsw")
+    print(f"✓ Inserted {len(images):,} Images")
+
     total_docs = len(pdfs) + len(word_docs) + len(images)
     print("\n" + "=" * 70)
-    print(f"✓ ALL {total_docs:,} DOCUMENTS LOADED INTO BOTH DATABASES!")
+    print(f"✓ ALL {total_docs:,} DOCUMENTS LOADED INTO ALL THREE DATABASES!")
     print("=" * 70)
-    print("\nYou can now verify the data in both databases:")
+    print("\nYou can now verify the data in all three databases:")
     print("\nMilvus verification:")
     print("  python -c \"from pymilvus import *; connections.connect(); print('PDFs:', Collection('persistent_pdfs').num_entities)\"")
     print("\nWeaviate verification:")
     print("  python -c \"import weaviate; c = weaviate.Client('http://localhost:8080'); print('PDFs:', c.query.aggregate('PersistentPDFs').with_meta_count().do())\"")
+    print("\nPostgreSQL verification:")
+    print("  python scripts/check_postgres.py")
     print("\nOr use the interactive browser:")
     print("  python scripts/database_browser.py")
-    print("\nCollections created in BOTH databases:")
+    print("\nCollections/Tables created in ALL THREE databases:")
     print("\nMilvus:")
     print("  - persistent_pdfs: {:,} documents".format(len(pdfs)))
     print("  - persistent_word: {:,} documents".format(len(word_docs)))
@@ -223,6 +282,10 @@ def main():
     print("  - PersistentPDFs: {:,} documents".format(len(pdfs)))
     print("  - PersistentWordDocs: {:,} documents".format(len(word_docs)))
     print("  - PersistentImages: {:,} documents".format(len(images)))
+    print("\nPostgreSQL:")
+    print("  - persistent_pdfs: {:,} documents".format(len(pdfs)))
+    print("  - persistent_word_docs: {:,} documents".format(len(word_docs)))
+    print("  - persistent_images: {:,} documents".format(len(images)))
     print("\nTo clean up later, run:")
     print("  python scripts/cleanup_persistent.py")
     print()

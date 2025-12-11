@@ -259,11 +259,11 @@ class PostgreSQLVectorClient:
                 SELECT id, filename, text, policy_id, policy_type,
                        ts_rank(text_search, query) as rank
                 FROM {table_name}, 
-                     to_tsquery('english', %s) query
+                     plainto_tsquery('english', %s) query
                 WHERE text_search @@ query
                 ORDER BY rank DESC
                 LIMIT %s;
-            """, (query_text.replace(" ", " & "), limit))
+            """, (query_text, limit))
             
             rows = cur.fetchall()
         

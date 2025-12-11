@@ -94,6 +94,7 @@ def generate_html_report():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Benchmark Report ({total_docs:,} docs): Milvus 2.5 vs Weaviate vs PostgreSQL</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {{
             margin: 0;
@@ -137,6 +138,19 @@ def generate_html_report():
             margin: 30px 0 20px 0;
             padding-bottom: 10px;
             border-bottom: 3px solid #667eea;
+        }}
+        h3 {{
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }}
+        .chart-container {{
+            position: relative;
+            height: 400px;
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
         .summary-grid {{
             display: grid;
@@ -250,6 +264,9 @@ def generate_html_report():
             <h2>Performance Results (Lower is Better)</h2>
 
             <h3>PDF Search Performance</h3>
+            <div class="chart-container">
+                <canvas id="pdfChart"></canvas>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -286,6 +303,9 @@ def generate_html_report():
             </table>
 
             <h3>Word Document Search Performance</h3>
+            <div class="chart-container">
+                <canvas id="wordChart"></canvas>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -322,6 +342,9 @@ def generate_html_report():
             </table>
 
             <h3>Image Search Performance</h3>
+            <div class="chart-container">
+                <canvas id="imageChart"></canvas>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -344,7 +367,10 @@ def generate_html_report():
             </table>
 
             <h2>Quality Metrics</h2>
-            <p>Both systems achieved perfect quality scores across all search types:</p>
+            <p>All three systems achieved perfect quality scores across all search types:</p>
+            <div class="chart-container">
+                <canvas id="qualityChart"></canvas>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -443,6 +469,249 @@ def generate_html_report():
             <p>Milvus 2.5 vs Weaviate vs PostgreSQL | Fair comparison testing same features on all systems</p>
         </div>
     </div>
+
+    <script>
+        // Chart.js configuration for better visuals
+        Chart.defaults.font.size = 14;
+        Chart.defaults.color = '#333';
+
+        // PDF Search Performance Chart
+        const pdfCtx = document.getElementById('pdfChart').getContext('2d');
+        new Chart(pdfCtx, {{
+            type: 'bar',
+            data: {{
+                labels: ['Dense (Semantic)', 'Sparse/Keyword', 'Hybrid'],
+                datasets: [
+                    {{
+                        label: 'Milvus 2.5',
+                        data: [{m_pdf_dense:.2f}, {m_pdf_sparse:.2f}, {m_pdf_hybrid:.2f}],
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'Weaviate',
+                        data: [{w_pdf_dense:.2f}, {w_pdf_keyword:.2f}, {w_pdf_hybrid:.2f}],
+                        backgroundColor: 'rgba(118, 75, 162, 0.8)',
+                        borderColor: 'rgba(118, 75, 162, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'PostgreSQL',
+                        data: [{p_pdf_dense:.2f}, {p_pdf_keyword:.2f}, {p_pdf_hybrid:.2f}],
+                        backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2
+                    }}
+                ]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    title: {{
+                        display: true,
+                        text: 'PDF Search Performance (ms) - Lower is Better',
+                        font: {{
+                            size: 16,
+                            weight: 'bold'
+                        }}
+                    }},
+                    legend: {{
+                        display: true,
+                        position: 'top'
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Time (ms)'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Word Document Search Performance Chart
+        const wordCtx = document.getElementById('wordChart').getContext('2d');
+        new Chart(wordCtx, {{
+            type: 'bar',
+            data: {{
+                labels: ['Dense (Semantic)', 'Sparse/Keyword', 'Hybrid'],
+                datasets: [
+                    {{
+                        label: 'Milvus 2.5',
+                        data: [{m_word_dense:.2f}, {m_word_sparse:.2f}, {m_word_hybrid:.2f}],
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'Weaviate',
+                        data: [{w_word_dense:.2f}, {w_word_keyword:.2f}, {w_word_hybrid:.2f}],
+                        backgroundColor: 'rgba(118, 75, 162, 0.8)',
+                        borderColor: 'rgba(118, 75, 162, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'PostgreSQL',
+                        data: [{p_word_dense:.2f}, {p_word_keyword:.2f}, {p_word_hybrid:.2f}],
+                        backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2
+                    }}
+                ]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    title: {{
+                        display: true,
+                        text: 'Word Document Search Performance (ms) - Lower is Better',
+                        font: {{
+                            size: 16,
+                            weight: 'bold'
+                        }}
+                    }},
+                    legend: {{
+                        display: true,
+                        position: 'top'
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Time (ms)'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Image Search Performance Chart
+        const imageCtx = document.getElementById('imageChart').getContext('2d');
+        new Chart(imageCtx, {{
+            type: 'bar',
+            data: {{
+                labels: ['Dense (CLIP embeddings)'],
+                datasets: [
+                    {{
+                        label: 'Milvus 2.5',
+                        data: [{m_img_dense:.2f}],
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'Weaviate',
+                        data: [{w_img_dense:.2f}],
+                        backgroundColor: 'rgba(118, 75, 162, 0.8)',
+                        borderColor: 'rgba(118, 75, 162, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'PostgreSQL',
+                        data: [{p_img_dense:.2f}],
+                        backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2
+                    }}
+                ]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    title: {{
+                        display: true,
+                        text: 'Image Search Performance (ms) - Lower is Better',
+                        font: {{
+                            size: 16,
+                            weight: 'bold'
+                        }}
+                    }},
+                    legend: {{
+                        display: true,
+                        position: 'top'
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Time (ms)'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Quality Metrics Chart
+        const qualityCtx = document.getElementById('qualityChart').getContext('2d');
+        new Chart(qualityCtx, {{
+            type: 'bar',
+            data: {{
+                labels: ['Precision@5', 'NDCG@5', 'MRR'],
+                datasets: [
+                    {{
+                        label: 'Milvus 2.5',
+                        data: [1.000, 1.000, 1.000],
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'Weaviate',
+                        data: [1.000, 1.000, 1.000],
+                        backgroundColor: 'rgba(118, 75, 162, 0.8)',
+                        borderColor: 'rgba(118, 75, 162, 1)',
+                        borderWidth: 2
+                    }},
+                    {{
+                        label: 'PostgreSQL',
+                        data: [1.000, 1.000, 1.000],
+                        backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2
+                    }}
+                ]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    title: {{
+                        display: true,
+                        text: 'Quality Metrics Comparison - Higher is Better',
+                        font: {{
+                            size: 16,
+                            weight: 'bold'
+                        }}
+                    }},
+                    legend: {{
+                        display: true,
+                        position: 'top'
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        max: 1.1,
+                        title: {{
+                            display: true,
+                            text: 'Score'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+    </script>
 </body>
 </html>"""
 

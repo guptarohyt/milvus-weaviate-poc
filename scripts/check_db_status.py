@@ -53,4 +53,36 @@ try:
 except Exception as e:
     print(f"  ✗ Error: {e}")
 
+# Check PostgreSQL
+print("\n🐘 POSTGRESQL:")
+try:
+    import psycopg2
+    conn = psycopg2.connect(host="localhost", port=5432, user="postgres", password="postgres", database="vectordb")
+    cur = conn.cursor()
+    
+    # Check for tables
+    cur.execute("""
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+    """)
+    tables = cur.fetchall()
+    
+    if tables:
+        print(f"  ✓ Connected")
+        print(f"  Tables found: {len(tables)}")
+        for table in tables:
+            table_name = table[0]
+            cur.execute(f"SELECT count(*) FROM {table_name}")
+            count = cur.fetchone()[0]
+            print(f"    • {table_name}: {count} rows")
+    else:
+        print("  ✓ Connected")
+        print("  ⚠️  No tables found (database is empty)")
+        
+    cur.close()
+    conn.close()
+except Exception as e:
+    print(f"  ✗ Error: {e}")
+
 print("\n" + "=" * 60)

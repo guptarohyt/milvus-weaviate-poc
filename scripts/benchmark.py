@@ -260,11 +260,7 @@ def setup_postgresql(pdfs, word_docs, images, use_persistent=False):
     client.create_table("word_docs", vector_dim=384)
     client.create_table("images", vector_dim=512)
     
-    # Create vector indexes
-    print("[PostgreSQL] Creating vector indexes...")
-    client.create_vector_index("pdfs", index_type="ivfflat")
-    client.create_vector_index("word_docs", index_type="ivfflat")
-    client.create_vector_index("images", index_type="ivfflat")
+    # Note: Creating indexes AFTER insertion for better performance/stability with HNSW
     
     # Insert PDFs
     print("[PostgreSQL] Inserting PDFs...")
@@ -277,6 +273,9 @@ def setup_postgresql(pdfs, word_docs, images, use_persistent=False):
     pdf_embeddings = [p["embedding"] for p in pdfs]
     client.insert_documents("pdfs", pdf_docs, pdf_embeddings)
     
+    print("[PostgreSQL] Creating PDF HNSW index...")
+    client.create_vector_index("pdfs", index_type="hnsw")
+    
     # Insert Word docs
     print("[PostgreSQL] Inserting Word docs...")
     word_doc_objs = [{
@@ -287,6 +286,9 @@ def setup_postgresql(pdfs, word_docs, images, use_persistent=False):
     } for w in word_docs]
     word_embeddings = [w["embedding"] for w in word_docs]
     client.insert_documents("word_docs", word_doc_objs, word_embeddings)
+    
+    print("[PostgreSQL] Creating Word doc HNSW index...")
+    client.create_vector_index("word_docs", index_type="hnsw")
     
     # Insert Images
     print("[PostgreSQL] Inserting Images...")
@@ -299,82 +301,85 @@ def setup_postgresql(pdfs, word_docs, images, use_persistent=False):
     image_embeddings = [img["image_embedding"] for img in images]
     client.insert_documents("images", image_docs, image_embeddings)
     
+    print("[PostgreSQL] Creating Image HNSW index...")
+    client.create_vector_index("images", index_type="hnsw")
+    
     print("✓ PostgreSQL setup complete\n")
     
     return client
 
 
-def benchmark_postgresql_pdfs(client, pdfs, num_queries=10):
+def benchmark_postgresql_pdfs(client, pdfs, num_queries=10, table_name="pdfs"):
     """Benchmark PostgreSQL PDF search (dense, keyword, hybrid)."""
     results = {
         "dense": [],
         "keyword": [],
         "hybrid": []
     }
-    
-    print(f"\n[PostgreSQL] Benchmarking PDF search ({num_queries} queries)...")
-    
+
+    print(f"\n[PostgreSQL] Benchmarking PDF search ({num_queries} queries) on table '{table_name}'...")
+
     for i in range(num_queries):
         query_vector = pdfs[i]["embedding"]
         query_text = pdfs[i]["text"]
-        
+
         # Dense search
-        _, elapsed = client.dense_search("pdfs", query_vector, limit=5)
+        _, elapsed = client.dense_search(table_name, query_vector, limit=5)
         results["dense"].append(elapsed)
-        
+
         # Keyword search
-        _, elapsed = client.keyword_search("pdfs", query_text, limit=5)
+        _, elapsed = client.keyword_search(table_name, query_text, limit=5)
         results["keyword"].append(elapsed)
-        
+
         # Hybrid search
-        _, elapsed = client.hybrid_search("pdfs", query_vector, query_text, limit=5)
+        _, elapsed = client.hybrid_search(table_name, query_vector, query_text, limit=5)
         results["hybrid"].append(elapsed)
-    
+
     return results
 
 
-def benchmark_postgresql_word(client, word_docs, num_queries=10):
+def benchmark_postgresql_word(client, word_docs, num_queries=10, table_name="word_docs"):
     """Benchmark PostgreSQL Word doc search."""
     results = {
         "dense": [],
         "keyword": [],
         "hybrid": []
     }
-    
-    print(f"[PostgreSQL] Benchmarking Word doc search ({num_queries} queries)...")
-    
+
+    print(f"[PostgreSQL] Benchmarking Word doc search ({num_queries} queries) on table '{table_name}'...")
+
     for i in range(num_queries):
         query_vector = word_docs[i]["embedding"]
         query_text = word_docs[i]["text"]
-        
+
         # Dense search
-        _, elapsed = client.dense_search("word_docs", query_vector, limit=5)
+        _, elapsed = client.dense_search(table_name, query_vector, limit=5)
         results["dense"].append(elapsed)
-        
+
         # Keyword search
-        _, elapsed = client.keyword_search("word_docs", query_text, limit=5)
+        _, elapsed = client.keyword_search(table_name, query_text, limit=5)
         results["keyword"].append(elapsed)
-        
+
         # Hybrid search
-        _, elapsed = client.hybrid_search("word_docs", query_vector, query_text, limit=5)
+        _, elapsed = client.hybrid_search(table_name, query_vector, query_text, limit=5)
         results["hybrid"].append(elapsed)
-    
+
     return results
 
 
-def benchmark_postgresql_images(client, images, num_queries=10):
+def benchmark_postgresql_images(client, images, num_queries=10, table_name="images"):
     """Benchmark PostgreSQL Image search (dense only)."""
     results = {"dense": []}
-    
-    print(f"[PostgreSQL] Benchmarking Image search ({num_queries} queries)...")
-    
+
+    print(f"[PostgreSQL] Benchmarking Image search ({num_queries} queries) on table '{table_name}'...")
+
     for i in range(num_queries):
         query_vector = images[i]["image_embedding"]
-        
+
         # Dense search (images don't have meaningful text for keyword search)
-        _, elapsed = client.dense_search("images", query_vector, limit=5)
+        _, elapsed = client.dense_search(table_name, query_vector, limit=5)
         results["dense"].append(elapsed)
-    
+
     return results
 
 
@@ -637,10 +642,20 @@ Examples:
         weaviate_word_results = benchmark_weaviate_word(weaviate_client, word_docs, num_queries)
         weaviate_image_results = benchmark_weaviate_images(weaviate_client, images, num_queries)
 
-    # PostgreSQL benchmarks
-    postgresql_pdf_results = benchmark_postgresql_pdfs(postgresql_client, pdfs, num_queries)
-    postgresql_word_results = benchmark_postgresql_word(postgresql_client, word_docs, num_queries)
-    postgresql_image_results = benchmark_postgresql_images(postgresql_client, images, num_queries)
+    # PostgreSQL benchmarks - use appropriate table names based on persistent flag
+    table_prefix = "persistent_" if args.use_persistent else ""
+    postgresql_pdf_results = benchmark_postgresql_pdfs(
+        postgresql_client, pdfs, num_queries,
+        table_name=f"{table_prefix}pdfs"
+    )
+    postgresql_word_results = benchmark_postgresql_word(
+        postgresql_client, word_docs, num_queries,
+        table_name=f"{table_prefix}word_docs"
+    )
+    postgresql_image_results = benchmark_postgresql_images(
+        postgresql_client, images, num_queries,
+        table_name=f"{table_prefix}images"
+    )
 
     # Calculate statistics
     print("\n" + "="*70)
@@ -743,6 +758,19 @@ Examples:
         weaviate_client.schema.delete_class("Phase3FairImages")
 
         print("✓ Cleanup complete")
+        
+        # PostgreSQL cleanup
+        # Disconnect first to release locks
+        postgresql_client.disconnect()
+        
+        import psycopg2
+        conn = psycopg2.connect(host="localhost", port=5432, user="postgres", password="postgres", database="vectordb")
+        cur = conn.cursor()
+        cur.execute("DROP TABLE IF EXISTS pdfs, word_docs, images;")
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("✓ PostgreSQL cleanup complete")
     else:
         print("\nSkipping cleanup (using persistent collections)")
 

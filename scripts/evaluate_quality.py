@@ -16,6 +16,7 @@ Compares:
 """
 
 import json
+import argparse
 import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
@@ -218,45 +219,64 @@ def mean_reciprocal_rank(retrieved_docs: List[int], relevant_docs: Dict[int, int
     return 0.0  # No relevant docs found
 
 
-def setup_milvus_collections(pdfs, images):
+def setup_milvus_collections(pdfs, images, use_persistent=False):
     """Setup Milvus 2.5 collections for quality eval."""
+    from pymilvus import Collection
+
     client = Milvus25HybridClient(host="localhost", port="19530")
     client.connect()
 
-    print("[Milvus 2.5] Creating collections for quality evaluation...")
+    if use_persistent:
+        print("[Milvus 2.5] Using existing persistent collections...")
+        pdf_collection = Collection("persistent_pdfs")
+        image_collection = Collection("persistent_images")
 
-    # PDF collection
-    pdf_collection = client.create_hybrid_collection("quality_eval_pdfs", dense_dim=384)
-    client.create_indexes(pdf_collection)
+        # Fit BM25 encoder on the corpus (needed for sparse search)
+        print("[Milvus 2.5] Fitting BM25 encoder on corpus...")
+        all_texts = [p["text"] for p in pdfs] + [img.get("description", "") for img in images]
+        client.bm25_encoder.fit(all_texts)
 
-    pdf_docs = [{"filename": p["filename"], "text": p["text"],
-                 "policy_id": p.get("id", "UNKNOWN"),
-                 "policy_type": p.get("type", "pdf")}
-                for p in pdfs]
-    pdf_embeddings = [p["embedding"] for p in pdfs]
-    client.insert_documents(pdf_collection, pdf_docs, pdf_embeddings)
-    pdf_collection.load()
+        print("✓ Connected to persistent collections\n")
+    else:
+        print("[Milvus 2.5] Creating collections for quality evaluation...")
 
-    # Image collection
-    image_collection = client.create_hybrid_collection("quality_eval_images", dense_dim=512)
-    client.create_indexes(image_collection)
+        # PDF collection
+        pdf_collection = client.create_hybrid_collection("quality_eval_pdfs", dense_dim=384)
+        client.create_indexes(pdf_collection)
 
-    image_docs = [{"filename": img["filename"], "text": img.get("description", ""),
-                   "policy_id": img.get("claim_id", "UNKNOWN"),
-                   "policy_type": img.get("damage_type", "unknown")}
-                  for img in images]
-    image_embeddings = [img["image_embedding"] for img in images]
-    client.insert_documents(image_collection, image_docs, image_embeddings)
-    image_collection.load()
+        pdf_docs = [{"filename": p["filename"], "text": p["text"],
+                     "policy_id": p.get("id", "UNKNOWN"),
+                     "policy_type": p.get("type", "pdf")}
+                    for p in pdfs]
+        pdf_embeddings = [p["embedding"] for p in pdfs]
+        client.insert_documents(pdf_collection, pdf_docs, pdf_embeddings)
+        pdf_collection.load()
 
-    print("✓ Milvus 2.5 collections ready\n")
+        # Image collection
+        image_collection = client.create_hybrid_collection("quality_eval_images", dense_dim=512)
+        client.create_indexes(image_collection)
+
+        image_docs = [{"filename": img["filename"], "text": img.get("description", ""),
+                       "policy_id": img.get("claim_id", "UNKNOWN"),
+                       "policy_type": img.get("damage_type", "unknown")}
+                      for img in images]
+        image_embeddings = [img["image_embedding"] for img in images]
+        client.insert_documents(image_collection, image_docs, image_embeddings)
+        image_collection.load()
+
+        print("✓ Milvus 2.5 collections ready\n")
 
     return client, pdf_collection, image_collection
 
 
-def setup_weaviate_collections(pdfs, images):
+def setup_weaviate_collections(pdfs, images, use_persistent=False):
     """Setup Weaviate collections for quality eval."""
     client = weaviate.Client("http://localhost:8080")
+
+    if use_persistent:
+        print("[Weaviate] Using existing persistent collections...")
+        print("✓ Connected to persistent collections\n")
+        return client
 
     print("[Weaviate] Creating collections for quality evaluation...")
 
@@ -327,16 +347,21 @@ def setup_weaviate_collections(pdfs, images):
     return client
 
 
-def setup_postgresql_collections(pdfs, images):
+def setup_postgresql_collections(pdfs, images, use_persistent=False):
     """Setup PostgreSQL collections for quality eval."""
     client = PostgreSQLVectorClient()
     client.connect()
+
+    if use_persistent:
+        print("[PostgreSQL] Using existing persistent tables...")
+        print("✓ Connected to persistent tables\n")
+        return client
 
     print("[PostgreSQL] Creating collections for quality evaluation...")
 
     # PDF collection
     client.create_table("quality_eval_pdfs", vector_dim=384)
-    client.create_vector_index("quality_eval_pdfs", index_type="ivfflat")
+    # Note: Creating index AFTER insertion for better performance/stability with HNSW
 
     pdf_docs = [{
         "filename": pdf["filename"],
@@ -347,9 +372,11 @@ def setup_postgresql_collections(pdfs, images):
     pdf_embeddings = [pdf["embedding"] for pdf in pdfs]
     client.insert_documents("quality_eval_pdfs", pdf_docs, pdf_embeddings)
 
+    print("[PostgreSQL] Creating PDF HNSW index...")
+    client.create_vector_index("quality_eval_pdfs", index_type="hnsw")
+
     # Image collection
     client.create_table("quality_eval_images", vector_dim=512)
-    client.create_vector_index("quality_eval_images", index_type="ivfflat")
 
     image_docs = [{
         "filename": img["filename"],
@@ -360,12 +387,15 @@ def setup_postgresql_collections(pdfs, images):
     image_embeddings = [img["image_embedding"] for img in images]
     client.insert_documents("quality_eval_images", image_docs, image_embeddings)
 
+    print("[PostgreSQL] Creating Image HNSW index...")
+    client.create_vector_index("quality_eval_images", index_type="hnsw")
+
     print("✓ PostgreSQL collections ready\n")
 
     return client
 
 
-def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10):
+def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10, table_name="quality_eval_pdfs"):
     """Evaluate PostgreSQL PDF search quality."""
     results = {
         "dense": {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []},
@@ -373,7 +403,7 @@ def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10):
         "hybrid": {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []}
     }
 
-    print(f"[PostgreSQL] Evaluating PDF search quality ({num_queries} queries)...")
+    print(f"[PostgreSQL] Evaluating PDF search quality ({num_queries} queries) on table '{table_name}'...")
 
     for query_idx in range(num_queries):
         query_vector = pdfs[query_idx]["embedding"]
@@ -381,7 +411,7 @@ def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10):
         relevance = ground_truth[query_idx]
 
         # Dense search
-        dense_results, _ = client.dense_search("quality_eval_pdfs", query_vector, limit=100)
+        dense_results, _ = client.dense_search(table_name, query_vector, limit=100)
         # Map filenames back to document indices
         pdf_filename_to_idx = {pdf["filename"]: i for i, pdf in enumerate(pdfs)}
         dense_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in dense_results if r.get("filename") in pdf_filename_to_idx]
@@ -392,7 +422,7 @@ def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10):
         results["dense"]["mrr"].append(mean_reciprocal_rank(dense_ids, relevance))
 
         # Keyword search
-        keyword_results, _ = client.keyword_search("quality_eval_pdfs", query_text, limit=100)
+        keyword_results, _ = client.keyword_search(table_name, query_text, limit=100)
         keyword_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in keyword_results if r.get("filename") in pdf_filename_to_idx]
 
         results["keyword"]["precision@5"].append(precision_at_k(keyword_ids, relevance, 5))
@@ -401,7 +431,7 @@ def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10):
         results["keyword"]["mrr"].append(mean_reciprocal_rank(keyword_ids, relevance))
 
         # Hybrid search
-        hybrid_results, _ = client.hybrid_search("quality_eval_pdfs", query_vector, query_text, limit=100)
+        hybrid_results, _ = client.hybrid_search(table_name, query_vector, query_text, limit=100)
         hybrid_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in hybrid_results if r.get("filename") in pdf_filename_to_idx]
 
         results["hybrid"]["precision@5"].append(precision_at_k(hybrid_ids, relevance, 5))
@@ -470,23 +500,37 @@ def evaluate_milvus_pdfs(client, collection, pdfs, ground_truth, filename_to_idx
     return results
 
 
-def evaluate_weaviate_pdfs(client, pdfs, ground_truth, num_queries=10):
+def evaluate_weaviate_pdfs(client, pdfs, ground_truth, num_queries=10, collection_name="QualityEvalPDFs"):
     """Evaluate Weaviate PDF search quality."""
     results = {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []}
 
-    print(f"[Weaviate] Evaluating PDF search quality ({num_queries} queries)...")
+    print(f"[Weaviate] Evaluating PDF search quality ({num_queries} queries) on collection '{collection_name}'...")
+
+    # When using persistent collections, we need to map by filename since doc_index isn't stored
+    use_filename_mapping = collection_name.startswith("Persistent")
+    pdf_filename_to_idx = {pdf["filename"]: i for i, pdf in enumerate(pdfs)} if use_filename_mapping else None
 
     for query_idx in range(num_queries):
         query_vector = pdfs[query_idx]["embedding"]
         relevance = ground_truth[query_idx]
 
         # Dense search
-        response = client.query.get("QualityEvalPDFs", ["doc_index"]) \
-            .with_near_vector({"vector": query_vector}) \
-            .with_limit(100) \
-            .do()
+        if use_filename_mapping:
+            response = client.query.get(collection_name, ["filename"]) \
+                .with_near_vector({"vector": query_vector}) \
+                .with_limit(100) \
+                .do()
 
-        retrieved_ids = [obj["doc_index"] for obj in response["data"]["Get"]["QualityEvalPDFs"]]
+            retrieved_ids = [pdf_filename_to_idx.get(obj["filename"], -1)
+                           for obj in response["data"]["Get"][collection_name]
+                           if obj.get("filename") in pdf_filename_to_idx]
+        else:
+            response = client.query.get(collection_name, ["doc_index"]) \
+                .with_near_vector({"vector": query_vector}) \
+                .with_limit(100) \
+                .do()
+
+            retrieved_ids = [obj["doc_index"] for obj in response["data"]["Get"][collection_name]]
 
         results["precision@5"].append(precision_at_k(retrieved_ids, relevance, 5))
         results["recall@5"].append(recall_at_k(retrieved_ids, relevance, 5))
@@ -501,9 +545,46 @@ def evaluate_weaviate_pdfs(client, pdfs, ground_truth, num_queries=10):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Evaluate retrieval quality",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Default: Create temporary collections, evaluate, cleanup
+  %(prog)s
+
+  # Use existing persistent collections (no data loading or cleanup)
+  %(prog)s --use-persistent
+
+  # Evaluate only specific databases
+  %(prog)s --milvus --postgres
+"""
+    )
+    parser.add_argument("--milvus", action="store_true", help="Run Milvus evaluation")
+    parser.add_argument("--weaviate", action="store_true", help="Run Weaviate evaluation")
+    parser.add_argument("--postgres", action="store_true", help="Run PostgreSQL evaluation")
+    parser.add_argument("--all", action="store_true", help="Run all evaluations")
+    parser.add_argument("--use-persistent", action="store_true",
+                       help="Use existing persistent collections instead of creating new ones (skips data loading and cleanup)")
+    args = parser.parse_args()
+
+    # Default to all if no specific flag provided
+    if not (args.milvus or args.weaviate or args.postgres):
+        args.all = True
+
+    if args.all:
+        args.milvus = True
+        args.weaviate = True
+        args.postgres = True
+
     print("="*70)
     print("Retrieval Quality Evaluation - Phase 3")
     print("="*70)
+    print(f"Modes enabled: Milvus={args.milvus}, Weaviate={args.weaviate}, PostgreSQL={args.postgres}")
+    if args.use_persistent:
+        print("Mode: Using existing persistent collections")
+    else:
+        print("Mode: Creating temporary collections")
     print("\nThis evaluates QUALITY (not speed) of search results.")
     print("Metrics: Precision@5, Recall@5, NDCG@5, MRR\n")
 
@@ -521,95 +602,138 @@ def main():
     # Create filename to index mapping
     pdf_filename_to_idx = {pdf["filename"]: i for i, pdf in enumerate(pdfs)}
 
-    # Setup databases
-    milvus_client, pdf_coll, image_coll = setup_milvus_collections(pdfs, images)
-    weaviate_client = setup_weaviate_collections(pdfs, images)
-    postgresql_client = setup_postgresql_collections(pdfs, images)
+    # Setup databases and Evaluate
+    results_to_save = {}
+    
+    # --- MILVUS ---
+    if args.milvus:
+        milvus_client, pdf_coll, image_coll = setup_milvus_collections(pdfs, images, use_persistent=args.use_persistent)
 
-    # Evaluate PDF search
-    print("\n" + "="*70)
-    print("EVALUATING PDF SEARCH QUALITY")
-    print("="*70 + "\n")
+        print("\n" + "="*70)
+        print("EVALUATING MILVUS PDF SEARCH QUALITY")
+        print("="*70 + "\n")
 
-    milvus_pdf_quality = evaluate_milvus_pdfs(milvus_client, pdf_coll, pdfs, pdf_ground_truth, pdf_filename_to_idx)
-    weaviate_pdf_quality = evaluate_weaviate_pdfs(weaviate_client, pdfs, pdf_ground_truth)
-    postgresql_pdf_quality = evaluate_postgresql_pdfs(postgresql_client, pdfs, pdf_ground_truth)
+        milvus_pdf_quality = evaluate_milvus_pdfs(milvus_client, pdf_coll, pdfs, pdf_ground_truth, pdf_filename_to_idx)
+        results_to_save["milvus_25_pdfs"] = milvus_pdf_quality
 
-    # Print results
-    print("\n" + "="*70)
-    print("QUALITY RESULTS")
-    print("="*70)
+        print("\nMilvus 2.5 PDF Search Quality:")
+        for search_type in ["dense", "sparse", "hybrid"]:
+            print(f"\n  {search_type.upper()}:")
+            print(f"    Precision@5: {milvus_pdf_quality[search_type]['precision@5_avg']:.3f}")
+            print(f"    Recall@5:    {milvus_pdf_quality[search_type]['recall@5_avg']:.3f}")
+            print(f"    NDCG@5:      {milvus_pdf_quality[search_type]['ndcg@5_avg']:.3f}")
+            print(f"    MRR:         {milvus_pdf_quality[search_type]['mrr_avg']:.3f}")
 
-    print("\nMilvus 2.5 PDF Search Quality:")
-    for search_type in ["dense", "sparse", "hybrid"]:
-        print(f"\n  {search_type.upper()}:")
-        print(f"    Precision@5: {milvus_pdf_quality[search_type]['precision@5_avg']:.3f}")
-        print(f"    Recall@5:    {milvus_pdf_quality[search_type]['recall@5_avg']:.3f}")
-        print(f"    NDCG@5:      {milvus_pdf_quality[search_type]['ndcg@5_avg']:.3f}")
-        print(f"    MRR:         {milvus_pdf_quality[search_type]['mrr_avg']:.3f}")
+    # --- WEAVIATE ---
+    if args.weaviate:
+        weaviate_client = setup_weaviate_collections(pdfs, images, use_persistent=args.use_persistent)
 
-    print("\nWeaviate PDF Search Quality:")
-    print(f"    Precision@5: {weaviate_pdf_quality['precision@5_avg']:.3f}")
-    print(f"    Recall@5:    {weaviate_pdf_quality['recall@5_avg']:.3f}")
-    print(f"    NDCG@5:      {weaviate_pdf_quality['ndcg@5_avg']:.3f}")
-    print(f"    MRR:         {weaviate_pdf_quality['mrr_avg']:.3f}")
+        print("\n" + "="*70)
+        print("EVALUATING WEAVIATE PDF SEARCH QUALITY")
+        print("="*70 + "\n")
 
-    print("\nPostgreSQL PDF Search Quality:")
-    for search_type in ["dense", "keyword", "hybrid"]:
-        print(f"\n  {search_type.upper()}:")
-        print(f"    Precision@5: {postgresql_pdf_quality[search_type]['precision@5_avg']:.3f}")
-        print(f"    Recall@5:    {postgresql_pdf_quality[search_type]['recall@5_avg']:.3f}")
-        print(f"    NDCG@5:      {postgresql_pdf_quality[search_type]['ndcg@5_avg']:.3f}")
-        print(f"    MRR:         {postgresql_pdf_quality[search_type]['mrr_avg']:.3f}")
+        # Use appropriate collection name based on persistent flag
+        collection_name = "PersistentPDFs" if args.use_persistent else "QualityEvalPDFs"
+        weaviate_pdf_quality = evaluate_weaviate_pdfs(
+            weaviate_client, pdfs, pdf_ground_truth,
+            num_queries=10, collection_name=collection_name
+        )
+        results_to_save["weaviate_pdfs"] = weaviate_pdf_quality
+
+        print("\nWeaviate PDF Search Quality:")
+        print(f"    Precision@5: {weaviate_pdf_quality['precision@5_avg']:.3f}")
+        print(f"    Recall@5:    {weaviate_pdf_quality['recall@5_avg']:.3f}")
+        print(f"    NDCG@5:      {weaviate_pdf_quality['ndcg@5_avg']:.3f}")
+        print(f"    MRR:         {weaviate_pdf_quality['mrr_avg']:.3f}")
+
+    # --- POSTGRESQL ---
+    if args.postgres:
+        postgresql_client = setup_postgresql_collections(pdfs, images, use_persistent=args.use_persistent)
+
+        print("\n" + "="*70)
+        print("EVALUATING POSTGRESQL PDF SEARCH QUALITY")
+        print("="*70 + "\n")
+
+        # Use appropriate table names based on persistent flag
+        table_prefix = "persistent" if args.use_persistent else "quality_eval"
+        postgresql_pdf_quality = evaluate_postgresql_pdfs(
+            postgresql_client, pdfs, pdf_ground_truth,
+            num_queries=10, table_name=f"{table_prefix}_pdfs"
+        )
+        results_to_save["postgresql_pdfs"] = postgresql_pdf_quality
+
+        print("\nPostgreSQL PDF Search Quality:")
+        for search_type in ["dense", "keyword", "hybrid"]:
+            print(f"\n  {search_type.upper()}:")
+            print(f"    Precision@5: {postgresql_pdf_quality[search_type]['precision@5_avg']:.3f}")
+            print(f"    Recall@5:    {postgresql_pdf_quality[search_type]['recall@5_avg']:.3f}")
+            print(f"    NDCG@5:      {postgresql_pdf_quality[search_type]['ndcg@5_avg']:.3f}")
+            print(f"    MRR:         {postgresql_pdf_quality[search_type]['mrr_avg']:.3f}")
 
     # Save results
     import os
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_file = Path(os.path.join(script_dir, "..", "results", "phase3_quality_results.json"))
 
-    quality_results = {
-        "milvus_25_pdfs": milvus_pdf_quality,
-        "weaviate_pdfs": weaviate_pdf_quality,
-        "postgresql_pdfs": postgresql_pdf_quality,
-        "ground_truth_notes": {
-            "relevance_scale": "0 (not relevant) to 3 (perfect match)",
-            "threshold": "Score >= 2 considered relevant for precision/recall",
-            "queries": "First 10 documents used as queries",
-            "judgments": "Based on policy type similarity (synthetic data)"
-        }
+    # Load existing results if file exists to merge
+    if output_file.exists():
+        try:
+            with open(output_file, "r") as f:
+                existing_results = json.load(f)
+                # Update existing results with new ones
+                existing_results.update(results_to_save)
+                results_to_save = existing_results
+        except:
+            pass
+
+    results_to_save["ground_truth_notes"] = {
+        "relevance_scale": "0 (not relevant) to 3 (perfect match)",
+        "threshold": "Score >= 2 considered relevant for precision/recall",
+        "queries": "First 10 documents used as queries",
+        "judgments": "Based on policy type similarity (synthetic data)"
     }
 
     with open(output_file, "w") as f:
-        json.dump(quality_results, f, indent=2)
+        json.dump(results_to_save, f, indent=2)
 
     print(f"\n✓ Quality results saved to {output_file}")
 
-    # Cleanup
-    print("\nCleaning up...")
-    pdf_coll.release()
-    image_coll.release()
+    # Cleanup (only if not using persistent collections)
+    if not args.use_persistent:
+        print("\nCleaning up temporary collections...")
 
-    from pymilvus import utility
-    utility.drop_collection("quality_eval_pdfs")
-    utility.drop_collection("quality_eval_images")
+        if args.milvus:
+            pdf_coll.release()
+            image_coll.release()
+            from pymilvus import utility
+            utility.drop_collection("quality_eval_pdfs")
+            utility.drop_collection("quality_eval_images")
+            milvus_client.disconnect()
+            print("✓ Milvus cleanup complete")
 
-    weaviate_client.schema.delete_class("QualityEvalPDFs")
-    weaviate_client.schema.delete_class("QualityEvalImages")
+        if args.weaviate:
+            weaviate_client.schema.delete_class("QualityEvalPDFs")
+            weaviate_client.schema.delete_class("QualityEvalImages")
+            print("✓ Weaviate cleanup complete")
 
-    # PostgreSQL cleanup
-    import psycopg2
-    conn = psycopg2.connect(host="localhost", port=5432, user="postgres", password="postgres", database="vectordb")
-    cur = conn.cursor()
-    cur.execute("DROP TABLE IF EXISTS quality_eval_pdfs, quality_eval_images;")
-    conn.commit()
-    cur.close()
-    conn.close()
+        if args.postgres:
+            # Disconnect client first to release any locks/open transactions
+            postgresql_client.disconnect()
 
-    milvus_client.disconnect()
-    postgresql_client.disconnect()
+            import psycopg2
+            conn = psycopg2.connect(host="localhost", port=5432, user="postgres", password="postgres", database="vectordb")
+            cur = conn.cursor()
+            cur.execute("DROP TABLE IF EXISTS quality_eval_pdfs, quality_eval_images;")
+            conn.commit()
+            cur.close()
+            conn.close()
+            print("✓ PostgreSQL cleanup complete")
+    else:
+        print("\nSkipping cleanup (using persistent collections)")
+        if args.milvus:
+            milvus_client.disconnect()
 
-    print("✓ Cleanup complete\n")
-    print("="*70)
+    print("\n" + "="*70)
     print("✓ Quality Evaluation Complete!")
     print("="*70)
     print("\nKey Takeaway:")
