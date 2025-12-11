@@ -26,6 +26,7 @@ import sys
 sys.path.append(str(Path(__file__).parent))
 from milvus_25_hybrid_client import Milvus25HybridClient
 from postgresql_client import PostgreSQLVectorClient
+from sqlserver_client import SQLServerVectorClient
 
 def load_processed_data():
     """Load all processed multi-modal data."""
@@ -260,9 +261,41 @@ def main():
     pg_client.create_vector_index("persistent_images", index_type="hnsw")
     print(f"✓ Inserted {len(images):,} Images")
 
+    # Now load into SQL Server
+    print("\n[SQL Server] Setting up tables...")
+    ss_client = SQLServerVectorClient()
+    ss_client.connect()
+
+    # Create tables
+    print("[SQL Server] Creating tables...")
+    ss_client.create_table("persistent_pdfs", vector_dim=384)
+    ss_client.create_table("persistent_word_docs", vector_dim=384)
+    ss_client.create_table("persistent_images", vector_dim=512)
+
+    # Insert PDFs
+    print(f"[SQL Server] Inserting {len(pdfs):,} PDFs...")
+    ss_client.insert_documents("persistent_pdfs", pdf_docs, pdf_embeddings)
+
+    print("[SQL Server] Creating PDF full-text index...")
+    ss_client.create_fulltext_index("persistent_pdfs")
+    print(f"✓ Inserted {len(pdfs):,} PDFs")
+
+    # Insert Word docs
+    print(f"[SQL Server] Inserting {len(word_docs):,} Word docs...")
+    ss_client.insert_documents("persistent_word_docs", word_doc_objs, word_embeddings)
+
+    print("[SQL Server] Creating Word doc full-text index...")
+    ss_client.create_fulltext_index("persistent_word_docs")
+    print(f"✓ Inserted {len(word_docs):,} Word docs")
+
+    # Insert Images
+    print(f"[SQL Server] Inserting {len(images):,} Images...")
+    ss_client.insert_documents("persistent_images", image_docs_pg, image_embeddings)
+    print(f"✓ Inserted {len(images):,} Images")
+
     total_docs = len(pdfs) + len(word_docs) + len(images)
     print("\n" + "=" * 70)
-    print(f"✓ ALL {total_docs:,} DOCUMENTS LOADED INTO ALL THREE DATABASES!")
+    print(f"✓ ALL {total_docs:,} DOCUMENTS LOADED INTO ALL FOUR DATABASES!")
     print("=" * 70)
     print("\nYou can now verify the data in all three databases:")
     print("\nMilvus verification:")
@@ -283,6 +316,10 @@ def main():
     print("  - PersistentWordDocs: {:,} documents".format(len(word_docs)))
     print("  - PersistentImages: {:,} documents".format(len(images)))
     print("\nPostgreSQL:")
+    print("  - persistent_pdfs: {:,} documents".format(len(pdfs)))
+    print("  - persistent_word_docs: {:,} documents".format(len(word_docs)))
+    print("  - persistent_images: {:,} documents".format(len(images)))
+    print("\nSQL Server:")
     print("  - persistent_pdfs: {:,} documents".format(len(pdfs)))
     print("  - persistent_word_docs: {:,} documents".format(len(word_docs)))
     print("  - persistent_images: {:,} documents".format(len(images)))

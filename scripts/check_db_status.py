@@ -85,4 +85,44 @@ try:
 except Exception as e:
     print(f"  ✗ Error: {e}")
 
+# Check SQL Server
+print("\n🔵 SQL SERVER:")
+try:
+    import pyodbc
+    conn_str = (
+        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+        f"SERVER=localhost,1433;"
+        f"DATABASE=vectordb;"
+        f"UID=sa;"
+        f"PWD=YourStrong@Passw0rd;"
+        f"TrustServerCertificate=yes;"
+    )
+    conn = pyodbc.connect(conn_str, autocommit=True)
+    cursor = conn.cursor()
+
+    # Check for tables
+    cursor.execute("""
+        SELECT TABLE_NAME
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = 'dbo'
+    """)
+    tables = cursor.fetchall()
+
+    if tables:
+        print(f"  ✓ Connected")
+        print(f"  Tables found: {len(tables)}")
+        for table in tables:
+            table_name = table[0]
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            count = cursor.fetchone()[0]
+            print(f"    • {table_name}: {count} rows")
+    else:
+        print("  ✓ Connected")
+        print("  ⚠️  No tables found (database is empty)")
+
+    cursor.close()
+    conn.close()
+except Exception as e:
+    print(f"  ✗ Error: {e}")
+
 print("\n" + "=" * 60)

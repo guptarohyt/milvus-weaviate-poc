@@ -6,6 +6,7 @@ Clean up persistent collections from all three databases (Milvus, Weaviate, Post
 from pymilvus import connections, utility
 import weaviate
 import psycopg2
+import pyodbc
 
 def cleanup_milvus():
     """Remove persistent collections from Milvus."""
@@ -68,14 +69,44 @@ def cleanup_postgresql():
     except Exception as e:
         print(f"✗ Error connecting to PostgreSQL: {e}")
 
+def cleanup_sqlserver():
+    """Remove persistent tables from SQL Server."""
+    print("\n[SQL Server] Cleaning up persistent tables...")
+
+    try:
+        conn_str = (
+            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"SERVER=localhost,1433;"
+            f"DATABASE=vectordb;"
+            f"UID=sa;"
+            f"PWD=YourStrong@Passw0rd;"
+            f"TrustServerCertificate=yes;"
+        )
+        conn = pyodbc.connect(conn_str, autocommit=True)
+        cursor = conn.cursor()
+
+        tables = ["persistent_pdfs", "persistent_word_docs", "persistent_images"]
+        for table in tables:
+            try:
+                cursor.execute(f"DROP TABLE IF EXISTS {table};")
+                print(f"✓ Dropped table: {table}")
+            except Exception as e:
+                print(f"✗ Error dropping {table}: {e}")
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"✗ Error connecting to SQL Server: {e}")
+
 def main():
     print("=" * 70)
-    print("CLEANING UP PERSISTENT DATA FROM ALL THREE DATABASES")
+    print("CLEANING UP PERSISTENT DATA FROM ALL FOUR DATABASES")
     print("=" * 70)
 
     cleanup_milvus()
     cleanup_weaviate()
     cleanup_postgresql()
+    cleanup_sqlserver()
 
     print("\n" + "=" * 70)
     print("✓ CLEANUP COMPLETE!")

@@ -39,6 +39,7 @@ def get_data_dir():
 
 from milvus_25_hybrid_client import Milvus25HybridClient
 from postgresql_client import PostgreSQLVectorClient
+from sqlserver_client import SQLServerVectorClient
 import weaviate
 
 
@@ -395,6 +396,50 @@ def setup_postgresql_collections(pdfs, images, use_persistent=False):
     return client
 
 
+def setup_sqlserver_collections(pdfs, images, use_persistent=False):
+    """Setup SQL Server collections for quality eval."""
+    client = SQLServerVectorClient()
+    client.connect()
+
+    if use_persistent:
+        print("[SQL Server] Using existing persistent tables...")
+        print("✓ Connected to persistent tables\n")
+        return client
+
+    print("[SQL Server] Creating collections for quality evaluation...")
+
+    # PDF collection
+    client.create_table("quality_eval_pdfs", vector_dim=384)
+
+    pdf_docs = [{
+        "filename": pdf["filename"],
+        "text": pdf["text"],
+        "policy_id": pdf.get("id", "UNKNOWN"),
+        "policy_type": pdf.get("type", "pdf")
+    } for pdf in pdfs]
+    pdf_embeddings = [pdf["embedding"] for pdf in pdfs]
+    client.insert_documents("quality_eval_pdfs", pdf_docs, pdf_embeddings)
+
+    print("[SQL Server] Creating PDF full-text index...")
+    client.create_fulltext_index("quality_eval_pdfs")
+
+    # Image collection
+    client.create_table("quality_eval_images", vector_dim=512)
+
+    image_docs = [{
+        "filename": img["filename"],
+        "text": img.get("description", ""),
+        "policy_id": img.get("claim_id", "UNKNOWN"),
+        "policy_type": img.get("damage_type", "unknown")
+    } for img in images]
+    image_embeddings = [img["image_embedding"] for img in images]
+    client.insert_documents("quality_eval_images", image_docs, image_embeddings)
+
+    print("✓ SQL Server collections ready\n")
+
+    return client
+
+
 def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10, table_name="quality_eval_pdfs"):
     """Evaluate PostgreSQL PDF search quality."""
     results = {
@@ -404,6 +449,59 @@ def evaluate_postgresql_pdfs(client, pdfs, ground_truth, num_queries=10, table_n
     }
 
     print(f"[PostgreSQL] Evaluating PDF search quality ({num_queries} queries) on table '{table_name}'...")
+
+    for query_idx in range(num_queries):
+        query_vector = pdfs[query_idx]["embedding"]
+        query_text = pdfs[query_idx]["text"]
+        relevance = ground_truth[query_idx]
+
+        # Dense search
+        dense_results, _ = client.dense_search(table_name, query_vector, limit=100)
+        # Map filenames back to document indices
+        pdf_filename_to_idx = {pdf["filename"]: i for i, pdf in enumerate(pdfs)}
+        dense_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in dense_results if r.get("filename") in pdf_filename_to_idx]
+
+        results["dense"]["precision@5"].append(precision_at_k(dense_ids, relevance, 5))
+        results["dense"]["recall@5"].append(recall_at_k(dense_ids, relevance, 5))
+        results["dense"]["ndcg@5"].append(ndcg_at_k(dense_ids, relevance, 5))
+        results["dense"]["mrr"].append(mean_reciprocal_rank(dense_ids, relevance))
+
+        # Keyword search
+        keyword_results, _ = client.keyword_search(table_name, query_text, limit=100)
+        keyword_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in keyword_results if r.get("filename") in pdf_filename_to_idx]
+
+        results["keyword"]["precision@5"].append(precision_at_k(keyword_ids, relevance, 5))
+        results["keyword"]["recall@5"].append(recall_at_k(keyword_ids, relevance, 5))
+        results["keyword"]["ndcg@5"].append(ndcg_at_k(keyword_ids, relevance, 5))
+        results["keyword"]["mrr"].append(mean_reciprocal_rank(keyword_ids, relevance))
+
+        # Hybrid search
+        hybrid_results, _ = client.hybrid_search(table_name, query_vector, query_text, limit=100)
+        hybrid_ids = [pdf_filename_to_idx.get(r["filename"], -1) for r in hybrid_results if r.get("filename") in pdf_filename_to_idx]
+
+        results["hybrid"]["precision@5"].append(precision_at_k(hybrid_ids, relevance, 5))
+        results["hybrid"]["recall@5"].append(recall_at_k(hybrid_ids, relevance, 5))
+        results["hybrid"]["ndcg@5"].append(ndcg_at_k(hybrid_ids, relevance, 5))
+        results["hybrid"]["mrr"].append(mean_reciprocal_rank(hybrid_ids, relevance))
+
+    # Calculate averages
+    for search_type in ["dense", "keyword", "hybrid"]:
+        for metric in ["precision@5", "recall@5", "ndcg@5", "mrr"]:
+            avg = np.mean(results[search_type][metric])
+            results[search_type][f"{metric}_avg"] = avg
+
+    return results
+
+
+def evaluate_sqlserver_pdfs(client, pdfs, ground_truth, num_queries=10, table_name="quality_eval_pdfs"):
+    """Evaluate SQL Server PDF search quality."""
+    results = {
+        "dense": {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []},
+        "keyword": {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []},
+        "hybrid": {"precision@5": [], "recall@5": [], "ndcg@5": [], "mrr": []}
+    }
+
+    print(f"[SQL Server] Evaluating PDF search quality ({num_queries} queries) on table '{table_name}'...")
 
     for query_idx in range(num_queries):
         query_vector = pdfs[query_idx]["embedding"]
@@ -563,24 +661,26 @@ Examples:
     parser.add_argument("--milvus", action="store_true", help="Run Milvus evaluation")
     parser.add_argument("--weaviate", action="store_true", help="Run Weaviate evaluation")
     parser.add_argument("--postgres", action="store_true", help="Run PostgreSQL evaluation")
+    parser.add_argument("--sqlserver", action="store_true", help="Run SQL Server evaluation")
     parser.add_argument("--all", action="store_true", help="Run all evaluations")
     parser.add_argument("--use-persistent", action="store_true",
                        help="Use existing persistent collections instead of creating new ones (skips data loading and cleanup)")
     args = parser.parse_args()
 
     # Default to all if no specific flag provided
-    if not (args.milvus or args.weaviate or args.postgres):
+    if not (args.milvus or args.weaviate or args.postgres or args.sqlserver):
         args.all = True
 
     if args.all:
         args.milvus = True
         args.weaviate = True
         args.postgres = True
+        args.sqlserver = True
 
     print("="*70)
     print("Retrieval Quality Evaluation - Phase 3")
     print("="*70)
-    print(f"Modes enabled: Milvus={args.milvus}, Weaviate={args.weaviate}, PostgreSQL={args.postgres}")
+    print(f"Modes enabled: Milvus={args.milvus}, Weaviate={args.weaviate}, PostgreSQL={args.postgres}, SQLServer={args.sqlserver}")
     if args.use_persistent:
         print("Mode: Using existing persistent collections")
     else:
@@ -670,6 +770,30 @@ Examples:
             print(f"    NDCG@5:      {postgresql_pdf_quality[search_type]['ndcg@5_avg']:.3f}")
             print(f"    MRR:         {postgresql_pdf_quality[search_type]['mrr_avg']:.3f}")
 
+    # --- SQL SERVER ---
+    if args.sqlserver:
+        sqlserver_client = setup_sqlserver_collections(pdfs, images, use_persistent=args.use_persistent)
+
+        print("\n" + "="*70)
+        print("EVALUATING SQL SERVER PDF SEARCH QUALITY")
+        print("="*70 + "\n")
+
+        # Use appropriate table names based on persistent flag
+        table_prefix = "persistent" if args.use_persistent else "quality_eval"
+        sqlserver_pdf_quality = evaluate_sqlserver_pdfs(
+            sqlserver_client, pdfs, pdf_ground_truth,
+            num_queries=10, table_name=f"{table_prefix}_pdfs"
+        )
+        results_to_save["sqlserver_pdfs"] = sqlserver_pdf_quality
+
+        print("\nSQL Server PDF Search Quality:")
+        for search_type in ["dense", "keyword", "hybrid"]:
+            print(f"\n  {search_type.upper()}:")
+            print(f"    Precision@5: {sqlserver_pdf_quality[search_type]['precision@5_avg']:.3f}")
+            print(f"    Recall@5:    {sqlserver_pdf_quality[search_type]['recall@5_avg']:.3f}")
+            print(f"    NDCG@5:      {sqlserver_pdf_quality[search_type]['ndcg@5_avg']:.3f}")
+            print(f"    MRR:         {sqlserver_pdf_quality[search_type]['mrr_avg']:.3f}")
+
     # Save results
     import os
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -728,6 +852,27 @@ Examples:
             cur.close()
             conn.close()
             print("✓ PostgreSQL cleanup complete")
+
+        if args.sqlserver:
+            # Disconnect client first to release any locks/open transactions
+            sqlserver_client.disconnect()
+
+            import pyodbc
+            conn_str = (
+                f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+                f"SERVER=localhost,1433;"
+                f"DATABASE=vectordb;"
+                f"UID=sa;"
+                f"PWD=YourStrong@Passw0rd;"
+                f"TrustServerCertificate=yes;"
+            )
+            conn = pyodbc.connect(conn_str, autocommit=True)
+            cursor = conn.cursor()
+            cursor.execute("DROP TABLE IF EXISTS quality_eval_pdfs;")
+            cursor.execute("DROP TABLE IF EXISTS quality_eval_images;")
+            cursor.close()
+            conn.close()
+            print("✓ SQL Server cleanup complete")
     else:
         print("\nSkipping cleanup (using persistent collections)")
         if args.milvus:

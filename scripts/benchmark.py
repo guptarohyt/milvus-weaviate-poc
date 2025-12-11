@@ -35,6 +35,7 @@ def get_data_dir():
 
 from milvus_25_hybrid_client import Milvus25HybridClient
 from postgresql_client import PostgreSQLVectorClient
+from sqlserver_client import SQLServerVectorClient
 import weaviate
 
 
@@ -305,7 +306,68 @@ def setup_postgresql(pdfs, word_docs, images, use_persistent=False):
     client.create_vector_index("images", index_type="hnsw")
     
     print("✓ PostgreSQL setup complete\n")
-    
+
+    return client
+
+
+def setup_sqlserver(pdfs, word_docs, images, use_persistent=False):
+    """Setup SQL Server for vector search."""
+    client = SQLServerVectorClient()
+    client.connect()
+
+    if use_persistent:
+        print("\n[SQL Server] Using existing persistent tables...")
+        print("✓ Connected to persistent tables\n")
+        return client
+
+    print("\n[SQL Server] Creating tables with vector columns...")
+
+    # Create tables
+    client.create_table("pdfs", vector_dim=384)
+    client.create_table("word_docs", vector_dim=384)
+    client.create_table("images", vector_dim=512)
+
+    # Insert PDFs
+    print("[SQL Server] Inserting PDFs...")
+    pdf_docs = [{
+        "filename": p["filename"],
+        "text": p["text"],
+        "policy_id": p.get("id", "UNKNOWN"),
+        "policy_type": p.get("type", "pdf")
+    } for p in pdfs]
+    pdf_embeddings = [p["embedding"] for p in pdfs]
+    client.insert_documents("pdfs", pdf_docs, pdf_embeddings)
+
+    print("[SQL Server] Creating PDF full-text index...")
+    client.create_fulltext_index("pdfs")
+
+    # Insert Word docs
+    print("[SQL Server] Inserting Word docs...")
+    word_doc_objs = [{
+        "filename": w["filename"],
+        "text": w["text"],
+        "policy_id": w.get("id", "UNKNOWN"),
+        "policy_type": w.get("type", "word")
+    } for w in word_docs]
+    word_embeddings = [w["embedding"] for w in word_docs]
+    client.insert_documents("word_docs", word_doc_objs, word_embeddings)
+
+    print("[SQL Server] Creating Word doc full-text index...")
+    client.create_fulltext_index("word_docs")
+
+    # Insert Images
+    print("[SQL Server] Inserting Images...")
+    image_docs = [{
+        "filename": img["filename"],
+        "text": img.get("description", ""),
+        "policy_id": img.get("claim_id", "UNKNOWN"),
+        "policy_type": img.get("damage_type", "unknown")
+    } for img in images]
+    image_embeddings = [img["image_embedding"] for img in images]
+    client.insert_documents("images", image_docs, image_embeddings)
+
+    print("✓ SQL Server setup complete\n")
+
     return client
 
 
@@ -372,6 +434,80 @@ def benchmark_postgresql_images(client, images, num_queries=10, table_name="imag
     results = {"dense": []}
 
     print(f"[PostgreSQL] Benchmarking Image search ({num_queries} queries) on table '{table_name}'...")
+
+    for i in range(num_queries):
+        query_vector = images[i]["image_embedding"]
+
+        # Dense search (images don't have meaningful text for keyword search)
+        _, elapsed = client.dense_search(table_name, query_vector, limit=5)
+        results["dense"].append(elapsed)
+
+    return results
+
+
+def benchmark_sqlserver_pdfs(client, pdfs, num_queries=10, table_name="pdfs"):
+    """Benchmark SQL Server PDF search (dense, keyword, hybrid)."""
+    results = {
+        "dense": [],
+        "keyword": [],
+        "hybrid": []
+    }
+
+    print(f"\n[SQL Server] Benchmarking PDF search ({num_queries} queries) on table '{table_name}'...")
+
+    for i in range(num_queries):
+        query_vector = pdfs[i]["embedding"]
+        query_text = pdfs[i]["text"]
+
+        # Dense search
+        _, elapsed = client.dense_search(table_name, query_vector, limit=5)
+        results["dense"].append(elapsed)
+
+        # Keyword search
+        _, elapsed = client.keyword_search(table_name, query_text, limit=5)
+        results["keyword"].append(elapsed)
+
+        # Hybrid search
+        _, elapsed = client.hybrid_search(table_name, query_vector, query_text, limit=5)
+        results["hybrid"].append(elapsed)
+
+    return results
+
+
+def benchmark_sqlserver_word(client, word_docs, num_queries=10, table_name="word_docs"):
+    """Benchmark SQL Server Word doc search."""
+    results = {
+        "dense": [],
+        "keyword": [],
+        "hybrid": []
+    }
+
+    print(f"[SQL Server] Benchmarking Word doc search ({num_queries} queries) on table '{table_name}'...")
+
+    for i in range(num_queries):
+        query_vector = word_docs[i]["embedding"]
+        query_text = word_docs[i]["text"]
+
+        # Dense search
+        _, elapsed = client.dense_search(table_name, query_vector, limit=5)
+        results["dense"].append(elapsed)
+
+        # Keyword search
+        _, elapsed = client.keyword_search(table_name, query_text, limit=5)
+        results["keyword"].append(elapsed)
+
+        # Hybrid search
+        _, elapsed = client.hybrid_search(table_name, query_vector, query_text, limit=5)
+        results["hybrid"].append(elapsed)
+
+    return results
+
+
+def benchmark_sqlserver_images(client, images, num_queries=10, table_name="images"):
+    """Benchmark SQL Server Image search (dense only)."""
+    results = {"dense": []}
+
+    print(f"[SQL Server] Benchmarking Image search ({num_queries} queries) on table '{table_name}'...")
 
     for i in range(num_queries):
         query_vector = images[i]["image_embedding"]
@@ -619,6 +755,7 @@ Examples:
     milvus_client, pdf_coll, word_coll, image_coll = setup_milvus_25(pdfs, word_docs, images, use_persistent=args.use_persistent)
     weaviate_client = setup_weaviate(pdfs, word_docs, images, use_persistent=args.use_persistent)
     postgresql_client = setup_postgresql(pdfs, word_docs, images, use_persistent=args.use_persistent)
+    sqlserver_client = setup_sqlserver(pdfs, word_docs, images, use_persistent=args.use_persistent)
 
     # Run benchmarks
     print("\n" + "="*70)
@@ -654,6 +791,20 @@ Examples:
     )
     postgresql_image_results = benchmark_postgresql_images(
         postgresql_client, images, num_queries,
+        table_name=f"{table_prefix}images"
+    )
+
+    # SQL Server benchmarks - use appropriate table names based on persistent flag
+    sqlserver_pdf_results = benchmark_sqlserver_pdfs(
+        sqlserver_client, pdfs, num_queries,
+        table_name=f"{table_prefix}pdfs"
+    )
+    sqlserver_word_results = benchmark_sqlserver_word(
+        sqlserver_client, word_docs, num_queries,
+        table_name=f"{table_prefix}word_docs"
+    )
+    sqlserver_image_results = benchmark_sqlserver_images(
+        sqlserver_client, images, num_queries,
         table_name=f"{table_prefix}images"
     )
 
@@ -699,6 +850,15 @@ Examples:
             "word_keyword": calculate_stats(postgresql_word_results["keyword"]),
             "word_hybrid": calculate_stats(postgresql_word_results["hybrid"]),
             "image_dense": calculate_stats(postgresql_image_results["dense"])
+        },
+        "sqlserver": {
+            "pdf_dense": calculate_stats(sqlserver_pdf_results["dense"]),
+            "pdf_keyword": calculate_stats(sqlserver_pdf_results["keyword"]),
+            "pdf_hybrid": calculate_stats(sqlserver_pdf_results["hybrid"]),
+            "word_dense": calculate_stats(sqlserver_word_results["dense"]),
+            "word_keyword": calculate_stats(sqlserver_word_results["keyword"]),
+            "word_hybrid": calculate_stats(sqlserver_word_results["hybrid"]),
+            "image_dense": calculate_stats(sqlserver_image_results["dense"])
         }
     }
 
@@ -729,6 +889,15 @@ Examples:
     print(f"  Word Keyword:{results['postgresql']['word_keyword']['avg']:.2f}ms avg")
     print(f"  Word Hybrid: {results['postgresql']['word_hybrid']['avg']:.2f}ms avg")
     print(f"  Image Dense: {results['postgresql']['image_dense']['avg']:.2f}ms avg")
+
+    print("\nSQL Server Results:")
+    print(f"  PDF Dense:   {results['sqlserver']['pdf_dense']['avg']:.2f}ms avg")
+    print(f"  PDF Keyword: {results['sqlserver']['pdf_keyword']['avg']:.2f}ms avg")
+    print(f"  PDF Hybrid:  {results['sqlserver']['pdf_hybrid']['avg']:.2f}ms avg")
+    print(f"  Word Dense:  {results['sqlserver']['word_dense']['avg']:.2f}ms avg")
+    print(f"  Word Keyword:{results['sqlserver']['word_keyword']['avg']:.2f}ms avg")
+    print(f"  Word Hybrid: {results['sqlserver']['word_hybrid']['avg']:.2f}ms avg")
+    print(f"  Image Dense: {results['sqlserver']['image_dense']['avg']:.2f}ms avg")
 
     # Save results
     import os
@@ -771,6 +940,28 @@ Examples:
         cur.close()
         conn.close()
         print("✓ PostgreSQL cleanup complete")
+
+        # SQL Server cleanup
+        # Disconnect first to release locks
+        sqlserver_client.disconnect()
+
+        import pyodbc
+        conn_str = (
+            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"SERVER=localhost,1433;"
+            f"DATABASE=vectordb;"
+            f"UID=sa;"
+            f"PWD=YourStrong@Passw0rd;"
+            f"TrustServerCertificate=yes;"
+        )
+        conn = pyodbc.connect(conn_str, autocommit=True)
+        cursor = conn.cursor()
+        cursor.execute("DROP TABLE IF EXISTS pdfs;")
+        cursor.execute("DROP TABLE IF EXISTS word_docs;")
+        cursor.execute("DROP TABLE IF EXISTS images;")
+        cursor.close()
+        conn.close()
+        print("✓ SQL Server cleanup complete")
     else:
         print("\nSkipping cleanup (using persistent collections)")
 
