@@ -8,20 +8,8 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any
 import argparse
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
-# Helper to get project root (parent of scripts/)
-PROJECT_ROOT = Path(__file__).parent.parent
-
-def get_data_dir():
-    """Get data directory, resolving DATA_OUTPUT_DIR relative to project root."""
-    data_output = os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")
-    if not Path(data_output).is_absolute():
-        return PROJECT_ROOT / data_output
-    return Path(data_output)
+from config import config
 from tqdm import tqdm
 import pdfplumber
 from docx import Document
@@ -265,8 +253,8 @@ class MultiModalProcessor:
         processed_images = []
 
         for meta in tqdm(metadata, desc="Processing images"):
-            # Get base directory from environment variable
-            base_dir = get_data_dir()
+            # Get base directory from config
+            base_dir = config.data.path
             image_path = base_dir / meta['path']
 
             if not image_path.exists():
@@ -319,7 +307,7 @@ def main():
     processor = MultiModalProcessor()
 
     # Define paths
-    data_dir = get_data_dir()
+    data_dir = config.data.path
     pdfs_dir = data_dir / "pdfs"
     word_dir = data_dir / "word"
     images_dir = data_dir / "images"

@@ -4,22 +4,7 @@ Load processed data into databases WITHOUT cleanup - so you can verify it's ther
 """
 
 import json
-import os
 from pathlib import Path
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
-# Helper to get project root (parent of scripts/)
-PROJECT_ROOT = Path(__file__).parent.parent
-
-def get_data_dir():
-    """Get data directory, resolving DATA_OUTPUT_DIR relative to project root."""
-    data_output = os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")
-    if not Path(data_output).is_absolute():
-        return PROJECT_ROOT / data_output
-    return Path(data_output)
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import weaviate
 import sys
@@ -27,11 +12,11 @@ sys.path.append(str(Path(__file__).parent))
 from milvus_25_hybrid_client import Milvus25HybridClient
 from postgresql_client import PostgreSQLVectorClient
 from sqlserver_client import SQLServerVectorClient
+from config import config
 
 def load_processed_data():
     """Load all processed multi-modal data."""
-    base_dir = get_data_dir()
-    data_dir = base_dir / "processed"
+    data_dir = config.data.processed_dir
 
     with open(data_dir / "pdfs_processed.json", "r") as f:
         pdfs = json.load(f)
@@ -98,7 +83,7 @@ def main():
 
     # Now load into Weaviate
     print("\n[Weaviate] Setting up collections...")
-    weaviate_client = weaviate.Client("http://localhost:8080")
+    weaviate_client = weaviate.Client(config.weaviate.url)
 
     # Create PDF collection
     pdf_schema = {
@@ -297,11 +282,11 @@ def main():
     print("\n" + "=" * 70)
     print(f"✓ ALL {total_docs:,} DOCUMENTS LOADED INTO ALL FOUR DATABASES!")
     print("=" * 70)
-    print("\nYou can now verify the data in all three databases:")
+    print("\nYou can now verify the data in all four databases:")
     print("\nMilvus verification:")
     print("  python -c \"from pymilvus import *; connections.connect(); print('PDFs:', Collection('persistent_pdfs').num_entities)\"")
     print("\nWeaviate verification:")
-    print("  python -c \"import weaviate; c = weaviate.Client('http://localhost:8080'); print('PDFs:', c.query.aggregate('PersistentPDFs').with_meta_count().do())\"")
+    print("  python -c \"import weaviate; from scripts.config import config; c = weaviate.Client(config.weaviate.url); print('PDFs:', c.query.aggregate('PersistentPDFs').with_meta_count().do())\"")
     print("\nPostgreSQL verification:")
     print("  python scripts/check_postgres.py")
     print("\nOr use the interactive browser:")

@@ -4,6 +4,8 @@
 from pymilvus import connections, utility, Collection
 import weaviate
 
+from config import config
+
 print("=" * 60)
 print("DATABASE STATUS CHECK")
 print("=" * 60)
@@ -11,18 +13,18 @@ print("=" * 60)
 # Check Milvus
 print("\n🔷 MILVUS:")
 try:
-    connections.connect(alias="default", host="localhost", port="19530")
+    connections.connect(alias="default", host=config.milvus.host, port=str(config.milvus.port))
     collections = utility.list_collections()
 
     if collections:
-        print(f"  ✓ Connected")
+        print(f"  ✓ Connected to {config.milvus.host}:{config.milvus.port}")
         print(f"  Collections found: {len(collections)}")
         for coll_name in collections:
             coll = Collection(coll_name)
             coll.flush()
             print(f"    • {coll_name}: {coll.num_entities} entities")
     else:
-        print("  ✓ Connected")
+        print(f"  ✓ Connected to {config.milvus.host}:{config.milvus.port}")
         print("  ⚠️  No collections found (database is empty)")
 
     connections.disconnect(alias="default")
@@ -32,11 +34,11 @@ except Exception as e:
 # Check Weaviate
 print("\n🔶 WEAVIATE:")
 try:
-    client = weaviate.connect_to_local(host="localhost", port=8080)
+    client = weaviate.connect_to_local(host=config.weaviate.host, port=config.weaviate.port)
     collections = client.collections.list_all()
 
     if collections:
-        print(f"  ✓ Connected")
+        print(f"  ✓ Connected to {config.weaviate.host}:{config.weaviate.port}")
         print(f"  Collections found: {len(collections)}")
         for name in collections.keys():
             try:
@@ -46,7 +48,7 @@ try:
             except:
                 print(f"    • {name}: Unknown count")
     else:
-        print("  ✓ Connected")
+        print(f"  ✓ Connected to {config.weaviate.host}:{config.weaviate.port}")
         print("  ⚠️  No collections found (database is empty)")
 
     client.close()
@@ -57,19 +59,25 @@ except Exception as e:
 print("\n🐘 POSTGRESQL:")
 try:
     import psycopg2
-    conn = psycopg2.connect(host="localhost", port=5432, user="postgres", password="postgres", database="vectordb")
+    conn = psycopg2.connect(
+        host=config.postgresql.host,
+        port=config.postgresql.port,
+        user=config.postgresql.user,
+        password=config.postgresql.password,
+        database=config.postgresql.database
+    )
     cur = conn.cursor()
-    
+
     # Check for tables
     cur.execute("""
-        SELECT table_name 
-        FROM information_schema.tables 
+        SELECT table_name
+        FROM information_schema.tables
         WHERE table_schema = 'public'
     """)
     tables = cur.fetchall()
-    
+
     if tables:
-        print(f"  ✓ Connected")
+        print(f"  ✓ Connected to {config.postgresql.host}:{config.postgresql.port}")
         print(f"  Tables found: {len(tables)}")
         for table in tables:
             table_name = table[0]
@@ -77,9 +85,9 @@ try:
             count = cur.fetchone()[0]
             print(f"    • {table_name}: {count} rows")
     else:
-        print("  ✓ Connected")
+        print(f"  ✓ Connected to {config.postgresql.host}:{config.postgresql.port}")
         print("  ⚠️  No tables found (database is empty)")
-        
+
     cur.close()
     conn.close()
 except Exception as e:
@@ -89,14 +97,7 @@ except Exception as e:
 print("\n🔵 SQL SERVER:")
 try:
     import pyodbc
-    conn_str = (
-        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-        f"SERVER=localhost,1433;"
-        f"DATABASE=vectordb;"
-        f"UID=sa;"
-        f"PWD=YourStrong@Passw0rd;"
-        f"TrustServerCertificate=yes;"
-    )
+    conn_str = config.sqlserver.connection_string
     conn = pyodbc.connect(conn_str, autocommit=True)
     cursor = conn.cursor()
 
@@ -109,7 +110,7 @@ try:
     tables = cursor.fetchall()
 
     if tables:
-        print(f"  ✓ Connected")
+        print(f"  ✓ Connected to {config.sqlserver.host}:{config.sqlserver.port}")
         print(f"  Tables found: {len(tables)}")
         for table in tables:
             table_name = table[0]
@@ -117,7 +118,7 @@ try:
             count = cursor.fetchone()[0]
             print(f"    • {table_name}: {count} rows")
     else:
-        print("  ✓ Connected")
+        print(f"  ✓ Connected to {config.sqlserver.host}:{config.sqlserver.port}")
         print("  ⚠️  No tables found (database is empty)")
 
     cursor.close()

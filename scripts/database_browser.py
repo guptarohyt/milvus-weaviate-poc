@@ -13,6 +13,8 @@ from rich.panel import Panel
 from rich.prompt import Prompt, IntPrompt
 from rich import box
 
+from config import config
+
 
 class DatabaseBrowser:
     """Interactive browser for Milvus and Weaviate databases."""
@@ -27,7 +29,7 @@ class DatabaseBrowser:
     def connect_milvus(self):
         """Connect to Milvus."""
         try:
-            connections.connect(alias="default", host="localhost", port="19530")
+            connections.connect(alias="default", host=config.milvus.host, port=str(config.milvus.port))
             self.milvus_connected = True
             self.console.print("[green]✓ Connected to Milvus[/green]")
             return True
@@ -38,7 +40,7 @@ class DatabaseBrowser:
     def connect_weaviate(self):
         """Connect to Weaviate."""
         try:
-            self.weaviate_client = weaviate.connect_to_local(host="localhost", port=8080)
+            self.weaviate_client = weaviate.connect_to_local(host=config.weaviate.host, port=config.weaviate.port)
             self.weaviate_connected = True
             self.console.print("[green]✓ Connected to Weaviate[/green]")
             return True

@@ -21,31 +21,17 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from collections import defaultdict
-import os
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
-# Helper to get project root (parent of scripts/)
-PROJECT_ROOT = Path(__file__).parent.parent
-
-def get_data_dir():
-    """Get data directory, resolving DATA_OUTPUT_DIR relative to project root."""
-    data_output = os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")
-    if not Path(data_output).is_absolute():
-        return PROJECT_ROOT / data_output
-    return Path(data_output)
 
 from milvus_25_hybrid_client import Milvus25HybridClient
 from postgresql_client import PostgreSQLVectorClient
 from sqlserver_client import SQLServerVectorClient
+from config import config
 import weaviate
 
 
 def load_processed_data():
     """Load all processed multi-modal data."""
-    data_dir = get_data_dir() / "processed"
+    data_dir = config.data.processed_dir
 
     with open(data_dir / "pdfs_processed.json", "r") as f:
         pdfs = json.load(f)
@@ -224,7 +210,7 @@ def setup_milvus_collections(pdfs, images, use_persistent=False):
     """Setup Milvus 2.5 collections for quality eval."""
     from pymilvus import Collection
 
-    client = Milvus25HybridClient(host="localhost", port="19530")
+    client = Milvus25HybridClient()  # Uses config defaults
     client.connect()
 
     if use_persistent:
@@ -272,7 +258,7 @@ def setup_milvus_collections(pdfs, images, use_persistent=False):
 
 def setup_weaviate_collections(pdfs, images, use_persistent=False):
     """Setup Weaviate collections for quality eval."""
-    client = weaviate.Client("http://localhost:8080")
+    client = weaviate.Client(config.weaviate.url)
 
     if use_persistent:
         print("[Weaviate] Using existing persistent collections...")
@@ -845,7 +831,13 @@ Examples:
             postgresql_client.disconnect()
 
             import psycopg2
-            conn = psycopg2.connect(host="localhost", port=5432, user="postgres", password="postgres", database="vectordb")
+            conn = psycopg2.connect(
+                host=config.postgresql.host,
+                port=config.postgresql.port,
+                user=config.postgresql.user,
+                password=config.postgresql.password,
+                database=config.postgresql.database
+            )
             cur = conn.cursor()
             cur.execute("DROP TABLE IF EXISTS quality_eval_pdfs, quality_eval_images;")
             conn.commit()
@@ -858,14 +850,7 @@ Examples:
             sqlserver_client.disconnect()
 
             import pyodbc
-            conn_str = (
-                f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-                f"SERVER=localhost,1433;"
-                f"DATABASE=vectordb;"
-                f"UID=sa;"
-                f"PWD=YourStrong@Passw0rd;"
-                f"TrustServerCertificate=yes;"
-            )
+            conn_str = config.sqlserver.connection_string
             conn = pyodbc.connect(conn_str, autocommit=True)
             cursor = conn.cursor()
             cursor.execute("DROP TABLE IF EXISTS quality_eval_pdfs;")

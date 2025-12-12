@@ -17,11 +17,13 @@ import time
 import numpy as np
 from typing import List, Dict, Any, Tuple, Optional
 
+from config import config
+
 
 class PostgreSQLVectorClient:
     """
     PostgreSQL client with pgvector extension for vector similarity search.
-    
+
     Features:
     - Dense vector search using cosine similarity (<=> operator)
     - Full-text keyword search using tsvector
@@ -29,25 +31,25 @@ class PostgreSQLVectorClient:
     - IVF indexing for vector columns
     - GIN indexing for full-text search
     """
-    
-    def __init__(self, host: str = "localhost", port: int = 5432, 
-                 user: str = "postgres", password: str = "postgres", 
-                 database: str = "vectordb"):
+
+    def __init__(self, host: str = None, port: int = None,
+                 user: str = None, password: str = None,
+                 database: str = None):
         """
         Initialize PostgreSQL client.
-        
+
         Args:
-            host: PostgreSQL server host
-            port: PostgreSQL server port
-            user: Database user
-            password: Database password
-            database: Database name
+            host: PostgreSQL server host (default: from config/environment)
+            port: PostgreSQL server port (default: from config/environment)
+            user: Database user (default: from config/environment)
+            password: Database password (default: from config/environment)
+            database: Database name (default: from config/environment)
         """
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.database = database
+        self.host = host or config.postgresql.host
+        self.port = port or config.postgresql.port
+        self.user = user or config.postgresql.user
+        self.password = password or config.postgresql.password
+        self.database = database or config.postgresql.database
         self.conn = None
         
     def connect(self):

@@ -20,6 +20,8 @@ import numpy as np
 from typing import List, Dict, Any, Tuple, Optional
 import struct
 
+from config import config
+
 
 class SQLServerVectorClient:
     """
@@ -32,38 +34,40 @@ class SQLServerVectorClient:
     - Client-side vector operations (native VECTOR type not yet available)
     """
 
-    def __init__(self, server: str = "localhost", port: int = 1433,
-                 user: str = "sa", password: str = "YourStrong@Passw0rd",
-                 database: str = "vectordb"):
+    def __init__(self, server: str = None, port: int = None,
+                 user: str = None, password: str = None,
+                 database: str = None):
         """
         Initialize SQL Server client.
 
         Args:
-            server: SQL Server host
-            port: SQL Server port
-            user: Database user (default: sa)
-            password: Database password
-            database: Database name
+            server: SQL Server host (default: from config/environment)
+            port: SQL Server port (default: from config/environment)
+            user: Database user (default: from config/environment)
+            password: Database password (default: from config/environment)
+            database: Database name (default: from config/environment)
         """
-        self.server = server
-        self.port = port
-        self.user = user
-        self.password = password
-        self.database = database
+        self.server = server or config.sqlserver.host
+        self.port = port or config.sqlserver.port
+        self.user = user or config.sqlserver.user
+        self.password = password or config.sqlserver.password
+        self.database = database or config.sqlserver.database
+        self.driver = config.sqlserver.driver
+        self.trust_cert = config.sqlserver.trust_cert
         self.conn = None
 
     def connect(self):
         """Connect to SQL Server and create database if needed."""
-        # First connect to master to create database
-        conn_str = (
-            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+        # First connect to master to create database (without specifying database)
+        conn_str_no_db = (
+            f"DRIVER={{{self.driver}}};"
             f"SERVER={self.server},{self.port};"
             f"UID={self.user};"
             f"PWD={self.password};"
-            f"TrustServerCertificate=yes;"
+            f"TrustServerCertificate={self.trust_cert};"
         )
 
-        temp_conn = pyodbc.connect(conn_str, autocommit=True)
+        temp_conn = pyodbc.connect(conn_str_no_db, autocommit=True)
         cursor = temp_conn.cursor()
 
         # Create database if not exists
@@ -78,12 +82,12 @@ class SQLServerVectorClient:
 
         # Now connect to the actual database
         conn_str = (
-            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"DRIVER={{{self.driver}}};"
             f"SERVER={self.server},{self.port};"
             f"DATABASE={self.database};"
             f"UID={self.user};"
             f"PWD={self.password};"
-            f"TrustServerCertificate=yes;"
+            f"TrustServerCertificate={self.trust_cert};"
         )
 
         self.conn = pyodbc.connect(conn_str, autocommit=False)

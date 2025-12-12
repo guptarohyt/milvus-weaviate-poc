@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Clean up persistent collections from all three databases (Milvus, Weaviate, PostgreSQL).
+Clean up persistent collections from all four databases (Milvus, Weaviate, PostgreSQL, SQL Server).
 """
 
 from pymilvus import connections, utility
@@ -8,10 +8,13 @@ import weaviate
 import psycopg2
 import pyodbc
 
+from config import config
+
+
 def cleanup_milvus():
     """Remove persistent collections from Milvus."""
     print("\n[Milvus] Cleaning up persistent collections...")
-    connections.connect(host="localhost", port="19530")
+    connections.connect(host=config.milvus.host, port=str(config.milvus.port))
 
     collections = ["persistent_pdfs", "persistent_word", "persistent_images"]
     for coll in collections:
@@ -24,10 +27,11 @@ def cleanup_milvus():
         except Exception as e:
             print(f"✗ Error dropping {coll}: {e}")
 
+
 def cleanup_weaviate():
     """Remove persistent collections from Weaviate."""
     print("\n[Weaviate] Cleaning up persistent collections...")
-    client = weaviate.Client("http://localhost:8080")
+    client = weaviate.Client(config.weaviate.url)
 
     classes = ["PersistentPDFs", "PersistentWordDocs", "PersistentImages"]
     for cls in classes:
@@ -40,17 +44,18 @@ def cleanup_weaviate():
             else:
                 print(f"✗ Error dropping {cls}: {e}")
 
+
 def cleanup_postgresql():
     """Remove persistent tables from PostgreSQL."""
     print("\n[PostgreSQL] Cleaning up persistent tables...")
 
     try:
         conn = psycopg2.connect(
-            host="localhost",
-            port=5432,
-            user="postgres",
-            password="postgres",
-            database="vectordb"
+            host=config.postgresql.host,
+            port=config.postgresql.port,
+            user=config.postgresql.user,
+            password=config.postgresql.password,
+            database=config.postgresql.database
         )
         cur = conn.cursor()
 
@@ -69,19 +74,13 @@ def cleanup_postgresql():
     except Exception as e:
         print(f"✗ Error connecting to PostgreSQL: {e}")
 
+
 def cleanup_sqlserver():
     """Remove persistent tables from SQL Server."""
     print("\n[SQL Server] Cleaning up persistent tables...")
 
     try:
-        conn_str = (
-            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-            f"SERVER=localhost,1433;"
-            f"DATABASE=vectordb;"
-            f"UID=sa;"
-            f"PWD=YourStrong@Passw0rd;"
-            f"TrustServerCertificate=yes;"
-        )
+        conn_str = config.sqlserver.connection_string
         conn = pyodbc.connect(conn_str, autocommit=True)
         cursor = conn.cursor()
 
@@ -97,6 +96,7 @@ def cleanup_sqlserver():
         conn.close()
     except Exception as e:
         print(f"✗ Error connecting to SQL Server: {e}")
+
 
 def main():
     print("=" * 70)
@@ -114,6 +114,7 @@ def main():
     print("\nAll persistent collections/tables have been removed.")
     print("The databases are now clean.")
     print()
+
 
 if __name__ == "__main__":
     main()

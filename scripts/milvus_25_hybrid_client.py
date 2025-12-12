@@ -27,6 +27,8 @@ from pymilvus import (
     utility
 )
 
+from config import config
+
 
 class BM25Encoder:
     """
@@ -132,16 +134,16 @@ class Milvus25HybridClient:
     - Grouping search
     """
 
-    def __init__(self, host: str = "localhost", port: str = "19530"):
+    def __init__(self, host: str = None, port: str = None):
         """
         Initialize Milvus 2.5 client.
 
         Args:
-            host: Milvus server host
-            port: Milvus server port
+            host: Milvus server host (default: from config/environment)
+            port: Milvus server port (default: from config/environment)
         """
-        self.host = host
-        self.port = port
+        self.host = host or config.milvus.host
+        self.port = str(port) if port else str(config.milvus.port)
         self.connection = None
         self.bm25_encoder = BM25Encoder()
 

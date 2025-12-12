@@ -17,17 +17,24 @@ from pymilvus import (
 )
 from sentence_transformers import SentenceTransformer
 
+from config import config
+
 
 class MilvusReinsuranceClient:
     """Milvus client for reinsurance use cases."""
 
-    def __init__(self, host: str = "localhost", port: str = "19530"):
-        """Initialize Milvus client."""
-        self.host = host
-        self.port = port
+    def __init__(self, host: str = None, port: str = None):
+        """Initialize Milvus client.
+
+        Args:
+            host: Milvus server host (default: from config/environment)
+            port: Milvus server port (default: from config/environment)
+        """
+        self.host = host or config.milvus.host
+        self.port = str(port) if port else str(config.milvus.port)
         self.connection_alias = "default"
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.embedding_dim = 384  # Dimension for all-MiniLM-L6-v2
+        self.model = SentenceTransformer(config.embedding.text_model)
+        self.embedding_dim = config.embedding.text_dim
         self.collections = {}
 
     def connect(self):

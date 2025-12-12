@@ -11,6 +11,7 @@ This script demonstrates:
 
 import numpy as np
 from milvus_25_hybrid_client import Milvus25HybridClient
+from config import config
 
 
 def generate_test_data(num_docs=20):
@@ -60,7 +61,7 @@ def main():
     print("="*70 + "\n")
 
     # Initialize client
-    client = Milvus25HybridClient(host="localhost", port="19530")
+    client = Milvus25HybridClient()  # Uses config defaults
     client.connect()
 
     # Create hybrid collection

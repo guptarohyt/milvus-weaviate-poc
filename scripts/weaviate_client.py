@@ -12,17 +12,24 @@ from weaviate.classes.config import Configure, Property, DataType
 from weaviate.classes.query import Filter, MetadataQuery
 from sentence_transformers import SentenceTransformer
 
+from config import config
+
 
 class WeaviateReinsuranceClient:
     """Weaviate client for reinsurance use cases."""
 
-    def __init__(self, host: str = "localhost", port: str = "8080"):
-        """Initialize Weaviate client."""
-        self.host = host
-        self.port = port
-        self.url = f"http://{host}:{port}"
+    def __init__(self, host: str = None, port: str = None):
+        """Initialize Weaviate client.
+
+        Args:
+            host: Weaviate server host (default: from config/environment)
+            port: Weaviate server port (default: from config/environment)
+        """
+        self.host = host or config.weaviate.host
+        self.port = str(port) if port else str(config.weaviate.port)
+        self.url = f"http://{self.host}:{self.port}"
         self.client = None
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.model = SentenceTransformer(config.embedding.text_model)
 
     def connect(self):
         """Connect to Weaviate server."""

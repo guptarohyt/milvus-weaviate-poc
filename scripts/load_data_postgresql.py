@@ -7,31 +7,17 @@ into PostgreSQL tables with vector embeddings for similarity search.
 """
 
 import json
-import os
 from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).parent))
 
 from postgresql_client import PostgreSQLVectorClient
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
-# Helper to get project root
-PROJECT_ROOT = Path(__file__).parent.parent
-
-def get_data_dir():
-    """Get data directory, resolving DATA_OUTPUT_DIR relative to project root."""
-    data_output = os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")
-    if not Path(data_output).is_absolute():
-        return PROJECT_ROOT / data_output
-    return Path(data_output)
+from config import config
 
 
 def load_processed_data():
     """Load all processed multi-modal data."""
-    data_dir = get_data_dir() / "processed"
+    data_dir = config.data.processed_dir
     
     with open(data_dir / "pdfs_processed.json", "r") as f:
         pdfs = json.load(f)

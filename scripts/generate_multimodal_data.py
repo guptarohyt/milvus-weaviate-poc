@@ -8,20 +8,8 @@ import os
 import random
 import argparse
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
-# Helper to get project root (parent of scripts/)
-PROJECT_ROOT = Path(__file__).parent.parent
-
-def get_data_dir():
-    """Get data directory, resolving DATA_OUTPUT_DIR relative to project root."""
-    data_output = os.getenv("DATA_OUTPUT_DIR", "./data/multimodal")
-    if not Path(data_output).is_absolute():
-        return PROJECT_ROOT / data_output
-    return Path(data_output)
+from config import config
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
@@ -358,7 +346,7 @@ def generate_all_pdfs(count=100):
         return
 
     # Setup directories
-    data_dir = get_data_dir()
+    data_dir = config.data.path
     pdfs_dir = data_dir / "pdfs"
     charts_dir = data_dir / "pdfs" / "charts"
     charts_dir.mkdir(parents=True, exist_ok=True)
@@ -501,7 +489,7 @@ def generate_all_images(count=200):
         return
 
     # Setup directories
-    data_dir = get_data_dir()
+    data_dir = config.data.path
     images_dir = data_dir / "images"
     images_dir.mkdir(parents=True, exist_ok=True)
 
@@ -795,7 +783,7 @@ def generate_all_word_docs(count=50):
         return
 
     # Setup directories
-    data_dir = get_data_dir()
+    data_dir = config.data.path
     word_dir = data_dir / "word"
     word_dir.mkdir(parents=True, exist_ok=True)
 
