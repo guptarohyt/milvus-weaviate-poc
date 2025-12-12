@@ -1,15 +1,16 @@
-# User Guide: Milvus vs Weaviate Benchmark
+# User Guide: Vector Database Benchmark
 
-This guide provides step-by-step instructions for setting up, running, and analyzing benchmarks between Milvus 2.5 and Weaviate.
+This guide provides step-by-step instructions for setting up, running, and analyzing benchmarks between Milvus 2.5, Weaviate, PostgreSQL (pgvector), and SQL Server.
 
 ## Table of Contents
 1.  [Prerequisites & Setup](#1-prerequisites--setup)
-2.  [Data Generation](#2-data-generation)
-3.  [Running Benchmarks](#3-running-benchmarks)
-4.  [Persistent Data Workflow](#4-persistent-data-workflow-recommended)
-5.  [Generating Reports](#5-generating-reports)
-6.  [Data Cleanup](#6-data-cleanup)
-7.  [Troubleshooting](#7-troubleshooting)
+2.  [Configuration](#2-configuration)
+3.  [Data Generation](#3-data-generation)
+4.  [Running Benchmarks](#4-running-benchmarks)
+5.  [Persistent Data Workflow](#5-persistent-data-workflow-recommended)
+6.  [Generating Reports](#6-generating-reports)
+7.  [Data Cleanup](#7-data-cleanup)
+8.  [Troubleshooting](#8-troubleshooting)
 
 ---
 
@@ -42,13 +43,76 @@ This guide provides step-by-step instructions for setting up, running, and analy
     ```
     *   **Milvus 2.5**: Ports `19530` (gRPC), `9091` (Health)
     *   **Weaviate**: Ports `8080` (HTTP), `50051` (gRPC)
+    *   **PostgreSQL**: Port `5432`
+    *   **SQL Server**: Port `1433`
     *   **MinIO**: Ports `9000`, `9001`
 
     > **Verify**: Run `python scripts/check_db_status.py` to confirm services are healthy.
 
 ---
 
-## 2. Data Generation
+## 2. Configuration
+
+The benchmark suite uses a centralized configuration system via environment variables. This allows the same code to run against local Docker containers or cloud-hosted databases.
+
+### Configuration File
+
+All settings are managed through environment variables. A template is provided:
+
+```bash
+# Copy the template
+cp .env.example .env
+
+# Edit with your settings (optional for local Docker)
+nano .env
+```
+
+### Available Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MILVUS_HOST` | `localhost` | Milvus server hostname |
+| `MILVUS_PORT` | `19530` | Milvus gRPC port |
+| `WEAVIATE_HOST` | `localhost` | Weaviate server hostname |
+| `WEAVIATE_PORT` | `8080` | Weaviate HTTP port |
+| `POSTGRES_HOST` | `localhost` | PostgreSQL server hostname |
+| `POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `POSTGRES_USER` | `postgres` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | `postgres` | PostgreSQL password |
+| `POSTGRES_DB` | `vectordb` | PostgreSQL database name |
+| `SQLSERVER_HOST` | `localhost` | SQL Server hostname |
+| `SQLSERVER_PORT` | `1433` | SQL Server port |
+| `SQLSERVER_USER` | `sa` | SQL Server username |
+| `SQLSERVER_PASSWORD` | `YourStrong@Passw0rd` | SQL Server password |
+| `DATA_OUTPUT_DIR` | `./data/multimodal` | Data directory path |
+
+### View Current Configuration
+
+```bash
+python scripts/config.py
+```
+
+This displays all current settings (passwords hidden by default).
+
+### Cloud Deployment Example
+
+For Azure or AWS deployments, create a `.env` file:
+
+```bash
+# Azure Example
+MILVUS_HOST=milvus.eastus.azure.com
+WEAVIATE_HOST=weaviate.eastus.azure.com
+POSTGRES_HOST=mypostgres.postgres.database.azure.com
+POSTGRES_USER=admin@mypostgres
+POSTGRES_PASSWORD=SecurePassword123!
+SQLSERVER_HOST=mysqlserver.database.windows.net
+SQLSERVER_USER=sqladmin
+SQLSERVER_PASSWORD=SecurePassword123!
+```
+
+---
+
+## 3. Data Generation
 
 The benchmark uses synthetic multi-modal data (PDFs, Word Docs, Images).
 
@@ -72,7 +136,7 @@ python scripts/process_data.py
 
 ---
 
-## 3. Running Benchmarks
+## 4. Running Benchmarks
 
 ### Standard Benchmark (Load & Run)
 This mode creates temporary collections, loads data, runs tests, and deletes collections.
@@ -82,9 +146,18 @@ python scripts/benchmark.py
 *   **Pros**: Clean state every time.
 *   **Cons**: Slow (reloads data every run).
 
+### Skip Specific Databases
+```bash
+# Skip SQL Server benchmarks
+python scripts/benchmark.py --skip-sqlserver
+
+# Skip PostgreSQL benchmarks
+python scripts/benchmark.py --skip-postgresql
+```
+
 ---
 
-## 4. Persistent Data Workflow (Recommended)
+## 5. Persistent Data Workflow (Recommended)
 
 For repeated testing, use persistent collections to skip the data loading step.
 
@@ -104,7 +177,7 @@ python scripts/benchmark.py --use-persistent
 
 ---
 
-## 5. Generating Reports
+## 6. Generating Reports
 
 After benchmarking, generate HTML and Markdown reports.
 
@@ -118,15 +191,15 @@ python scripts/generate_report.py
 
 ### Understanding Results
 *   **Latency**: Lower is better (ms).
-*   **Speedup**: How many times faster Milvus is compared to Weaviate (e.g., "2.5x").
-*   **Quality**: Precision@5, NDCG@5 (should be 1.0 for both).
+*   **Speedup**: How many times faster Milvus is compared to others (e.g., "2.5x").
+*   **Quality**: Precision@5, NDCG@5 (should be ~1.0 for all databases).
 
 ---
 
-## 6. Data Cleanup
+## 7. Data Cleanup
 
 ### Clean Persistent Collections
-To remove the `persistent_*` collections from the databases:
+To remove the `persistent_*` collections from all four databases:
 ```bash
 python scripts/cleanup_persistent.py
 ```
@@ -140,7 +213,7 @@ rm -rf data/multimodal
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 ### Port Conflicts
 If Docker fails to start, check if ports are in use.
@@ -160,3 +233,15 @@ This happens if BM25 encoder isn't fitted.
 ### "Connection refused"
 *   Wait 30-60 seconds after `docker-compose up` for services to initialize.
 *   Run `docker-compose ps` to check status.
+*   Verify configuration: `python scripts/config.py`
+
+### SQL Server ODBC Driver Issues
+If SQL Server connection fails:
+*   Ensure ODBC Driver 18 is installed
+*   Check the driver name in `.env`: `SQLSERVER_DRIVER=ODBC Driver 18 for SQL Server`
+*   For older drivers: `SQLSERVER_DRIVER=ODBC Driver 17 for SQL Server`
+
+### PostgreSQL pgvector Extension
+If PostgreSQL vector operations fail:
+*   Ensure pgvector extension is enabled: The client auto-enables it on connect
+*   Check PostgreSQL version supports pgvector (v14+)

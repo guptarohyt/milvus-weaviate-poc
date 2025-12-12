@@ -1,6 +1,6 @@
-# Milvus 2.5 vs Weaviate Benchmark POC
+# Vector Database Benchmark POC
 
-A comprehensive benchmarking suite comparing **Milvus 2.5** and **Weaviate** for multi-modal search (Text + Image) using Dense, Sparse, and Hybrid search strategies.
+A comprehensive benchmarking suite comparing **Milvus 2.5**, **Weaviate**, **PostgreSQL (pgvector)**, and **SQL Server** for multi-modal search (Text + Image) using Dense, Sparse, and Hybrid search strategies.
 
 ## 🚀 Quick Start
 
@@ -22,7 +22,10 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Start Infrastructure (Milvus, Weaviate, MinIO)
+# Copy and configure environment (optional - defaults work for local Docker)
+cp .env.example .env
+
+# Start Infrastructure (Milvus, Weaviate, PostgreSQL, SQL Server, MinIO)
 docker-compose up -d
 ```
 
@@ -48,12 +51,18 @@ python scripts/generate_report.py
 
 ```
 milvus-weaviate-poc/
+├── .env.example            # Environment configuration template
 ├── data/                   # Generated synthetic data
 ├── results/                # Benchmark results (JSON)
-├── scripts/                # Python scripts
+├── scripts/
+│   ├── config.py           # Centralized configuration
 │   ├── generate_data.py    # Data generation
 │   ├── process_data.py     # Embedding generation
 │   ├── benchmark.py        # Main benchmark script
+│   ├── milvus_25_hybrid_client.py   # Milvus client
+│   ├── weaviate_client.py           # Weaviate client
+│   ├── postgresql_client.py         # PostgreSQL client
+│   ├── sqlserver_client.py          # SQL Server client
 │   └── generate_report.py  # HTML/Markdown reporting
 ├── docker-compose.yml      # Infrastructure definition
 └── requirements.txt        # Python dependencies
@@ -61,12 +70,43 @@ milvus-weaviate-poc/
 
 ## ⚡ Key Features Tested
 
+*   **Databases**: Milvus 2.5, Weaviate, PostgreSQL (pgvector), SQL Server
 *   **Multi-Modal Data**: PDFs (Text), Word Docs (Text), Images (Visual).
 *   **Search Methods**:
     *   **Dense**: Semantic search (Sentence Transformers / CLIP).
-    *   **Sparse**: Keyword search (BM25).
+    *   **Sparse**: Keyword search (BM25 / Full-Text Search).
     *   **Hybrid**: RRF Fusion of Dense + Sparse.
 *   **Scale**: Verified up to 50,000 documents.
+
+## ⚙️ Configuration
+
+The benchmark suite uses a centralized configuration system that supports both local Docker and cloud deployments.
+
+### Local Development (Default)
+No configuration needed - defaults work with `docker-compose up -d`.
+
+### Cloud Deployment (Azure, AWS, etc.)
+1. Copy the template: `cp .env.example .env`
+2. Edit `.env` with your cloud database endpoints:
+
+```bash
+# Database Hosts
+MILVUS_HOST=your-milvus-server.azure.com
+WEAVIATE_HOST=your-weaviate-server.azure.com
+POSTGRES_HOST=your-postgres-server.azure.com
+SQLSERVER_HOST=your-sqlserver-server.azure.com
+
+# Credentials
+POSTGRES_USER=admin
+POSTGRES_PASSWORD=your-secure-password
+SQLSERVER_USER=sa
+SQLSERVER_PASSWORD=your-secure-password
+```
+
+### View Current Configuration
+```bash
+python scripts/config.py
+```
 
 ## 🛠️ Development
 
@@ -75,10 +115,14 @@ To avoid reloading data every time:
 1.  Load data once: `python scripts/load_data_persistent.py`
 2.  Run benchmark repeatedly: `python scripts/benchmark.py --use-persistent`
 
-### Environment Variables
-Create a `.env` file to customize paths:
+### Check Database Status
 ```bash
-DATA_OUTPUT_DIR=./data/custom_location
+python scripts/check_db_status.py
+```
+
+### Clean Up Persistent Data
+```bash
+python scripts/cleanup_persistent.py
 ```
 
 ## 🤝 Contributing
