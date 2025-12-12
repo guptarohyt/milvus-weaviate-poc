@@ -2,7 +2,7 @@
 
 **Milvus 2.5 vs Weaviate vs PostgreSQL vs SQL Server - Fair Comparison**
 
-*50,000 multi-modal documents | December 11, 2025*
+*50,000 multi-modal documents | December 12, 2025*
 
 ---
 
@@ -14,8 +14,8 @@
 | **PDFs** | **25,000** | Insurance policies |
 | **Word Docs** | **15,000** | Claims & underwriting |
 | **Images** | **10,000** | Damage assessments |
-| **Milvus Best Speed** | **1.31ms** | Image dense search |
-| **Max Speedup** | **3.7x** | Milvus faster (keyword) |
+| **Milvus Best Speed** | **1.35ms** | Image dense search |
+| **Max Speedup** | **3.6x** | Milvus faster (keyword) |
 
 ---
 
@@ -25,23 +25,23 @@
 
 | Search Type | Milvus 2.5 | Weaviate | PostgreSQL | SQL Server | Speedup (Milvus vs) |
 |-------------|-----------|----------|------------|------------|---------------------|
-| **Dense (Semantic)** | **2.43 ms** | 3.47 ms | 3.05 ms | 616.46 ms | W: 1.4x <br> P: 1.3x <br> S: 253.7x |
-| **Sparse/Keyword (BM25)** | **4.58 ms** | 17.16 ms | 11.83 ms | 11.65 ms | W: 3.7x <br> P: 2.6x <br> S: 2.5x |
-| **Hybrid** | **6.02 ms** | 20.17 ms | 13.19 ms | 577.76 ms | W: 3.4x <br> P: 2.2x <br> S: 96.0x |
+| **Dense (Semantic)** | **1.60 ms** | 3.54 ms | 2.96 ms | 604.93 ms | W: 2.2x <br> P: 1.9x <br> S: 378.4x |
+| **Sparse/Keyword (BM25)** | **4.62 ms** | 16.46 ms | 12.17 ms | 11.29 ms | W: 3.6x <br> P: 2.6x <br> S: 2.4x |
+| **Hybrid** | **6.30 ms** | 19.88 ms | 13.27 ms | 588.47 ms | W: 3.2x <br> P: 2.1x <br> S: 93.5x |
 
 ### Word Document Search Performance
 
 | Search Type | Milvus 2.5 | Weaviate | PostgreSQL | SQL Server | Speedup (Milvus vs) |
 |-------------|-----------|----------|------------|------------|---------------------|
-| **Dense (Semantic)** | **1.31 ms** | 3.52 ms | 2.36 ms | 322.94 ms | W: 2.7x <br> P: 1.8x <br> S: 246.4x |
-| **Sparse/Keyword (BM25)** | **2.23 ms** | 7.97 ms | 3.18 ms | 11.75 ms | W: 3.6x <br> P: 1.4x <br> S: 5.3x |
-| **Hybrid** | **3.75 ms** | 9.18 ms | 5.25 ms | 323.91 ms | W: 2.4x <br> P: 1.4x <br> S: 86.4x |
+| **Dense (Semantic)** | **1.35 ms** | 3.17 ms | 2.71 ms | 311.67 ms | W: 2.4x <br> P: 2.0x <br> S: 231.4x |
+| **Sparse/Keyword (BM25)** | **2.17 ms** | 7.26 ms | 3.27 ms | 9.42 ms | W: 3.3x <br> P: 1.5x <br> S: 4.3x |
+| **Hybrid** | **3.61 ms** | 9.72 ms | 5.10 ms | 319.40 ms | W: 2.7x <br> P: 1.4x <br> S: 88.5x |
 
 ### Image Search Performance
 
 | Search Type | Milvus 2.5 | Weaviate | PostgreSQL | SQL Server | Speedup (Milvus vs) |
 |-------------|-----------|----------|------------|------------|---------------------|
-| **Dense (CLIP embeddings)** | **1.36 ms** | 3.89 ms | 3.10 ms | 186.73 ms | W: 2.9x <br> P: 2.3x <br> S: 137.2x |
+| **Dense (CLIP embeddings)** | **1.44 ms** | 3.84 ms | 3.09 ms | 177.21 ms | W: 2.7x <br> P: 2.1x <br> S: 123.0x |
 
 ---
 
@@ -60,7 +60,7 @@ All four systems achieved perfect quality scores across all search types:
 ## Key Findings
 
 - **Performance Winner: Milvus 2.5** - Faster across ALL search types (2-7x speedup)
-- **Biggest Gap: Keyword Search** - Milvus 3.7x faster than Weaviate
+- **Biggest Gap: Keyword Search** - Milvus 3.6x faster than Weaviate
 - **Quality Tie:** Both systems deliver perfect search quality
 - **Scale Validation:** Successfully tested at 50K documents (5x larger than initial tests)
 - **Consistent Performance:** Milvus maintains speed advantage across all document types
@@ -73,13 +73,13 @@ All four systems achieved perfect quality scores across all search types:
 
 **Milvus 2.5 wins 7 out of 7 performance tests:**
 
-1. ✓ PDF Dense Search - 1.4x faster
-2. ✓ PDF Sparse/Keyword Search - 3.7x faster
-3. ✓ PDF Hybrid Search - 3.4x faster
-4. ✓ Word Dense Search - 2.7x faster
-5. ✓ Word Sparse/Keyword Search - 3.6x faster
-6. ✓ Word Hybrid Search - 2.4x faster
-7. ✓ Image Dense Search - 2.9x faster
+1. ✓ PDF Dense Search - 2.2x faster
+2. ✓ PDF Sparse/Keyword Search - 3.6x faster
+3. ✓ PDF Hybrid Search - 3.2x faster
+4. ✓ Word Dense Search - 2.4x faster
+5. ✓ Word Sparse/Keyword Search - 3.3x faster
+6. ✓ Word Hybrid Search - 2.7x faster
+7. ✓ Image Dense Search - 2.7x faster
 
 **Quality: Tie (both systems 1.000 for all metrics)**
 
@@ -106,31 +106,31 @@ All four systems achieved perfect quality scores across all search types:
 
 ### Fastest Operations
 
-1. **Image Dense Search (Milvus)**: 1.36 ms
-2. **Word Dense Search (Milvus)**: 1.31 ms
-3. **PDF Dense Search (Milvus)**: 2.43 ms
-4. **Word Sparse Search (Milvus)**: 2.23 ms
-5. **PDF Sparse Search (Milvus)**: 4.58 ms
+1. **Image Dense Search (Milvus)**: 1.44 ms
+2. **Word Dense Search (Milvus)**: 1.35 ms
+3. **PDF Dense Search (Milvus)**: 1.60 ms
+4. **Word Sparse Search (Milvus)**: 2.17 ms
+5. **PDF Sparse Search (Milvus)**: 4.62 ms
 
 ### Slowest Operations
 
-1. **PDF Hybrid Search (Weaviate)**: 20.17 ms
-2. **PDF Sparse Search (Weaviate)**: 17.16 ms
-3. **Word Hybrid Search (Weaviate)**: 9.18 ms
-4. **Word Sparse Search (Weaviate)**: 7.97 ms
-5. **PDF Hybrid Search (Milvus)**: 6.02 ms
+1. **PDF Hybrid Search (Weaviate)**: 19.88 ms
+2. **PDF Sparse Search (Weaviate)**: 16.46 ms
+3. **Word Hybrid Search (Weaviate)**: 9.72 ms
+4. **Word Sparse Search (Weaviate)**: 7.26 ms
+5. **PDF Hybrid Search (Milvus)**: 6.30 ms
 
 ### Speed Improvement Analysis
 
 **Average Speedup by Search Type:**
-- Dense Search: 2.3x faster (average across all doc types)
-- Sparse/Keyword Search: 3.7x faster (average across text types)
+- Dense Search: 2.4x faster (average across all doc types)
+- Sparse/Keyword Search: 3.5x faster (average across text types)
 - Hybrid Search: 2.9x faster (average across all types)
 
 **Average Speedup by Document Type:**
-- PDFs: 2.8x faster (average across all search types)
-- Word Docs: 2.9x faster (average across all search types)
-- Images: 2.9x faster (dense only)
+- PDFs: 3.0x faster (average across all search types)
+- Word Docs: 2.8x faster (average across all search types)
+- Images: 2.7x faster (dense only)
 
 ---
 
